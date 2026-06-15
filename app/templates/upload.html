@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block title %}Upload Annotation — Phytolaeno{% endblock %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-upload me-2" style="color:var(--ph-green)"></i>Upload Annotation</h2>
+
+{% if error %}
+<div class="alert alert-danger"><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>
+{% endif %}
+
+<ul class="nav nav-tabs mb-4" id="uploadTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="gm-tab" data-bs-toggle="tab" data-bs-target="#gm-panel"
+            type="button" role="tab">Gene Model Annotation</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="re-tab" data-bs-toggle="tab" data-bs-target="#re-panel"
+            type="button" role="tab">Repeat Element Annotation</button>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- GM Upload -->
+  <div class="tab-pane fade show active" id="gm-panel" role="tabpanel">
+    <form method="post" action="/upload/gm">
+      <div class="row g-3">
+        <div class="col-12"><h5 class="text-muted border-bottom pb-1">Assembly / Protocol</h5></div>
+        <div class="col-md-4">
+          <label class="form-label">Assembly ID <span class="text-danger">*</span></label>
+          <input type="number" name="assembly_id" class="form-control" required placeholder="e.g. 1">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Tool</label>
+          <input type="text" name="tool" class="form-control" placeholder="e.g. MAKER, BRAKER">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Tool version</label>
+          <input type="text" name="tool_version" class="form-control" placeholder="e.g. 2.31.11">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Commands</label>
+          <textarea name="commands" class="form-control" rows="2" placeholder="Command(s) used…"></textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Protocol notes</label>
+          <textarea name="notes" class="form-control" rows="2" placeholder="Any additional notes…"></textarea>
+        </div>
+
+        <div class="col-12 mt-2"><h5 class="text-muted border-bottom pb-1">Annotation Metadata</h5></div>
+        <div class="col-md-3">
+          <label class="form-label">Rank</label>
+          <input type="text" name="rank" class="form-control" placeholder="e.g. 1">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Version label</label>
+          <input type="text" name="version_label" class="form-control" placeholder="e.g. v1">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">PID</label>
+          <input type="text" name="pid" class="form-control" placeholder="e.g. 95">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Ref type</label>
+          <input type="text" name="ref_type" class="form-control" placeholder="e.g. proteins">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Methodology</label>
+          <input type="text" name="methodology" class="form-control" placeholder="e.g. MAKER2(est2genome+protein2genome)">
+        </div>
+
+        <div class="col-12 mt-2"><h5 class="text-muted border-bottom pb-1">Gene Model Counts</h5></div>
+        <div class="col-md-3">
+          <label class="form-label">Gene models</label>
+          <input type="number" name="gene_models_n" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Transcript models</label>
+          <input type="number" name="transcript_models_n" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">CDS models</label>
+          <input type="number" name="cds_models_n" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Exons</label>
+          <input type="number" name="exons_n" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">UTR5'</label>
+          <input type="number" name="utr5_n" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">UTR3'</label>
+          <input type="number" name="utr3_n" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Both UTRs</label>
+          <input type="number" name="both_utrs_n" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Overlapping gene models</label>
+          <input type="number" name="overlapping_gene_models_n" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Single-exon gene models</label>
+          <input type="number" name="single_exon_gene_models_n" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Single-exon transcripts</label>
+          <input type="number" name="single_exon_transcripts_n" class="form-control">
+        </div>
+
+        <div class="col-12 mt-2"><h5 class="text-muted border-bottom pb-1">Length Statistics</h5></div>
+        <div class="col-md-3">
+          <label class="form-label">Total gene space (Mb)</label>
+          <input type="number" step="0.01" name="total_gene_space_mb" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Mean gene model (bp)</label>
+          <input type="number" step="0.1" name="mean_gene_model_length_bp" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Mean CDS (bp)</label>
+          <input type="number" step="0.1" name="mean_cds_length_bp" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Mean exon (bp)</label>
+          <input type="number" step="0.1" name="mean_exon_length_bp" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Mean intron (bp)</label>
+          <input type="number" step="0.1" name="mean_intron_length_bp" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Longest gene model (bp)</label>
+          <input type="number" name="longest_gene_model_bp" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Shortest gene model (bp)</label>
+          <input type="number" name="shortest_gene_model_bp" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Longest CDS (bp)</label>
+          <input type="number" name="longest_cds_bp" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Longest intron (bp)</label>
+          <input type="number" name="longest_intron_bp" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Shortest intron (bp)</label>
+          <input type="number" name="shortest_intron_bp" class="form-control">
+        </div>
+
+        <div class="col-12 mt-2"><h5 class="text-muted border-bottom pb-1">Quality Flags</h5></div>
+        <div class="col-md-3">
+          <label class="form-label">Early STOP codon models</label>
+          <input type="number" name="models_early_stop" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">START missing</label>
+          <input type="number" name="models_start_missing" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">STOP missing</label>
+          <input type="number" name="models_stop_missing" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">START &amp; STOP missing</label>
+          <input type="number" name="models_start_stop_missing" class="form-control">
+        </div>
+
+        <div class="col-12 mt-2"><h5 class="text-muted border-bottom pb-1">QC Metrics</h5></div>
+        <div class="col-md-4">
+          <label class="form-label">BUSCO viridiplantae (raw)</label>
+          <input type="text" name="busco_viridi_raw" class="form-control" placeholder="C:98.1%[S:76.0%,D:22.1%],F:1.2%,M:0.7%">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">BUSCO embryophyta (raw)</label>
+          <input type="text" name="busco_embryo_raw" class="form-control" placeholder="C:98.1%[S:76.0%,D:22.1%],F:1.2%,M:0.7%">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">PSAURON score</label>
+          <input type="number" step="0.01" name="psauron_score" class="form-control">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">OMArk completeness (raw)</label>
+          <input type="text" name="omark_completeness_raw" class="form-control">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">OMArk consistency (raw)</label>
+          <input type="text" name="omark_consistency_raw" class="form-control">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">OMArk species composition</label>
+          <input type="text" name="omark_species_composition" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Proteins SwissProt (%)</label>
+          <input type="number" step="0.01" name="proteins_swissprot_pct" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Proteins TrEMBL (%)</label>
+          <input type="number" step="0.01" name="proteins_trembl_pct" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">GAQET plot area</label>
+          <input type="number" step="0.01" name="gaqet_plot_area" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">DETENGA FPV raw</label>
+          <input type="text" name="detenga_fpv_raw" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">DETENGA FP% raw</label>
+          <input type="text" name="detenga_fp_pct_raw" class="form-control">
+        </div>
+
+        <div class="col-12 mt-2"><h5 class="text-muted border-bottom pb-1">Comparison Metrics (optional)</h5></div>
+        <div class="col-md-3">
+          <label class="form-label">F1-score (base level)</label>
+          <input type="number" step="0.0001" name="f1_score_base" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">F1-score (locus level)</label>
+          <input type="number" step="0.0001" name="f1_score_locus" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Missed loci</label>
+          <input type="number" name="missed_loci" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">New loci</label>
+          <input type="number" name="new_loci" class="form-control">
+        </div>
+
+        <div class="col-12 mt-3">
+          <button type="submit" class="btn btn-ph px-4"><i class="bi bi-upload me-1"></i>Submit Gene Model Annotation</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- RE Upload -->
+  <div class="tab-pane fade" id="re-panel" role="tabpanel">
+    <form method="post" action="/upload/re">
+      <div class="row g-3">
+        <div class="col-12"><h5 class="text-muted border-bottom pb-1">Assembly / Protocol</h5></div>
+        <div class="col-md-4">
+          <label class="form-label">Assembly ID <span class="text-danger">*</span></label>
+          <input type="number" name="assembly_id" class="form-control" required placeholder="e.g. 1">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Tool</label>
+          <input type="text" name="tool" class="form-control" placeholder="e.g. EarlGrey, Barrnap, tRNAScan-SE">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Tool version</label>
+          <input type="text" name="tool_version" class="form-control">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Commands</label>
+          <textarea name="commands" class="form-control" rows="2" placeholder="Command(s) used…"></textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Protocol notes</label>
+          <textarea name="notes" class="form-control" rows="2"></textarea>
+        </div>
+
+        <div class="col-12 mt-2"><h5 class="text-muted border-bottom pb-1">Annotation Data</h5></div>
+        <div class="col-md-4">
+          <label class="form-label">Rank</label>
+          <input type="text" name="rank" class="form-control" placeholder="e.g. 1">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Version label</label>
+          <input type="text" name="version_label" class="form-control" placeholder="e.g. v1">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Total repeats (%)</label>
+          <input type="number" step="0.01" name="total_pct" class="form-control">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Raw output</label>
+          <textarea name="raw_output" class="form-control" rows="6" placeholder="Paste raw tool output here (EarlGrey summary, Barrnap GFF header, etc.)…"></textarea>
+        </div>
+
+        <div class="col-12 mt-3">
+          <button type="submit" class="btn btn-ph px-4"><i class="bi bi-upload me-1"></i>Submit Repeat Annotation</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

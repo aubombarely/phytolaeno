@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}{{ ann.version_label or "GM Annotation" }} — Phytolaeno{% endblock %}
+{% block content %}
+{% set sp = ann.assembly.species %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/species">Species</a></li>
+    <li class="breadcrumb-item"><a href="/species/{{ sp.id }}"><em>{{ sp.name | replace("_", " ") }}</em></a></li>
+    <li class="breadcrumb-item"><a href="/assemblies/{{ ann.assembly.id }}">{{ ann.assembly.version }}</a></li>
+    <li class="breadcrumb-item active">{{ ann.version_label or "GM Annotation" }}</li>
+  </ol>
+</nav>
+
+{% macro row2(label, val) %}
+<tr><th class="w-40">{{ label }}</th><td>{{ val if val is not none and val != "" else "—" }}</td></tr>
+{% endmacro %}
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header card-header-ph"><i class="bi bi-gene me-1"></i>{{ ann.version_label or "Gene Model Annotation" }}</div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-6">
+        <table class="table table-sm table-borderless mb-0">
+          {{ row2("Rank", ann.rank) }}
+          {{ row2("Tool", ann.protocol.tool if ann.protocol else None) }}
+          {{ row2("Tool version", ann.protocol.tool_version if ann.protocol else None) }}
+          {{ row2("Methodology", ann.methodology) }}
+        </table>
+      </div>
+      <div class="col-md-6">
+        <table class="table table-sm table-borderless mb-0">
+          {{ row2("PID", ann.pid) }}
+          {{ row2("Ref type", ann.ref_type) }}
+        </table>
+      </div>
+    </div>
+    {% if ann.protocol and ann.protocol.commands %}
+    <div class="mt-2"><strong>Commands:</strong><pre class="bg-light p-2 rounded small mt-1">{{ ann.protocol.commands }}</pre></div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <!-- Gene model counts -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header card-header-ph"><i class="bi bi-hash me-1"></i>Gene Model Counts</div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-striped mb-0">
+          <tbody>
+            {{ row2("Gene models", "{:,}".format(ann.gene_models_n) if ann.gene_models_n else None) }}
+            {{ row2("Transcript models", "{:,}".format(ann.transcript_models_n) if ann.transcript_models_n else None) }}
+            {{ row2("CDS models", "{:,}".format(ann.cds_models_n) if ann.cds_models_n else None) }}
+            {{ row2("Exons", "{:,}".format(ann.exons_n) if ann.exons_n else None) }}
+            {{ row2("UTR5'", "{:,}".format(ann.utr5_n) if ann.utr5_n else None) }}
+            {{ row2("UTR3'", "{:,}".format(ann.utr3_n) if ann.utr3_n else None) }}
+            {{ row2("Both UTRs", "{:,}".format(ann.both_utrs_n) if ann.both_utrs_n else None) }}
+            {{ row2("Overlapping gene models", "{:,}".format(ann.overlapping_gene_models_n) if ann.overlapping_gene_models_n else None) }}
+            {{ row2("Single-exon gene models", "{:,}".format(ann.single_exon_gene_models_n) if ann.single_exon_gene_models_n else None) }}
+            {{ row2("Single-exon transcripts", "{:,}".format(ann.single_exon_transcripts_n) if ann.single_exon_transcripts_n else None) }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lengths -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header card-header-ph"><i class="bi bi-rulers me-1"></i>Length Statistics</div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-striped mb-0">
+          <tbody>
+            {{ row2("Total gene space (Mb)", "%.2f"|format(ann.total_gene_space_mb) if ann.total_gene_space_mb else None) }}
+            {{ row2("Mean gene model (bp)", "%.0f"|format(ann.mean_gene_model_length_bp) if ann.mean_gene_model_length_bp else None) }}
+            {{ row2("Mean CDS (bp)", "%.0f"|format(ann.mean_cds_length_bp) if ann.mean_cds_length_bp else None) }}
+            {{ row2("Mean exon (bp)", "%.0f"|format(ann.mean_exon_length_bp) if ann.mean_exon_length_bp else None) }}
+            {{ row2("Mean intron (bp)", "%.0f"|format(ann.mean_intron_length_bp) if ann.mean_intron_length_bp else None) }}
+            {{ row2("Longest gene model (bp)", "%.0f"|format(ann.longest_gene_model_bp) if ann.longest_gene_model_bp else None) }}
+            {{ row2("Longest CDS (bp)", "%.0f"|format(ann.longest_cds_bp) if ann.longest_cds_bp else None) }}
+            {{ row2("Longest intron (bp)", "%.0f"|format(ann.longest_intron_bp) if ann.longest_intron_bp else None) }}
+            {{ row2("Shortest gene model (bp)", "%.0f"|format(ann.shortest_gene_model_bp) if ann.shortest_gene_model_bp else None) }}
+            {{ row2("Shortest intron (bp)", "%.0f"|format(ann.shortest_intron_bp) if ann.shortest_intron_bp else None) }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quality flags -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header card-header-ph"><i class="bi bi-exclamation-triangle me-1"></i>Quality Flags</div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-striped mb-0">
+          <tbody>
+            {{ row2("Models with early STOP", ann.models_early_stop) }}
+            {{ row2("Models START missing", ann.models_start_missing) }}
+            {{ row2("Models STOP missing", ann.models_stop_missing) }}
+            {{ row2("Models START & STOP missing", ann.models_start_stop_missing) }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- QC scores -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header card-header-ph"><i class="bi bi-check2-circle me-1"></i>QC Scores</div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-striped mb-0">
+          <tbody>
+            {{ row2("BUSCO viridiplantae", ann.busco_viridi_raw) }}
+            {{ row2("BUSCO embryophyta", ann.busco_embryo_raw) }}
+            {{ row2("OMArk completeness", ann.omark_completeness_raw) }}
+            {{ row2("OMArk consistency", ann.omark_consistency_raw) }}
+            {{ row2("OMArk species", ann.omark_species_composition) }}
+            {{ row2("PSAURON score", "%.2f"|format(ann.psauron_score) if ann.psauron_score else None) }}
+            {{ row2("Proteins SwissProt (%)", "%.2f"|format(ann.proteins_swissprot_pct) if ann.proteins_swissprot_pct else None) }}
+            {{ row2("Proteins TrEMBL (%)", "%.2f"|format(ann.proteins_trembl_pct) if ann.proteins_trembl_pct else None) }}
+            {{ row2("GAQET plot area", "%.0f"|format(ann.gaqet_plot_area) if ann.gaqet_plot_area else None) }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison metrics -->
+  {% if ann.f1_score_base or ann.f1_score_locus %}
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header card-header-ph"><i class="bi bi-bar-chart me-1"></i>Comparison Metrics</div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-striped mb-0">
+          <tbody>
+            {{ row2("F1-score (base level)", "%.4f"|format(ann.f1_score_base) if ann.f1_score_base else None) }}
+            {{ row2("F1-score (locus level)", "%.4f"|format(ann.f1_score_locus) if ann.f1_score_locus else None) }}
+            {{ row2("Missed loci", ann.missed_loci) }}
+            {{ row2("New loci", ann.new_loci) }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

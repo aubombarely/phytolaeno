@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Phytolaeno — Home{% endblock %}
+{% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <h2><i class="bi bi-archive-fill me-2" style="color:var(--ph-green)"></i>Plant Genome Annotation Archive</h2>
+    <p class="text-muted">A curated benchmark of plant genome assemblies and annotations.</p>
+  </div>
+</div>
+
+<div class="row g-3 mb-5">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card h-100 shadow-sm">
+      <div class="card-body">
+        <div class="text-muted small mb-1"><i class="bi bi-flower1 me-1"></i>Species</div>
+        <div class="stat-number">{{ n_species }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card h-100 shadow-sm">
+      <div class="card-body">
+        <div class="text-muted small mb-1"><i class="bi bi-layers me-1"></i>Assemblies</div>
+        <div class="stat-number">{{ n_assemblies }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card h-100 shadow-sm">
+      <div class="card-body">
+        <div class="text-muted small mb-1"><i class="bi bi-gene me-1"></i>Gene Model Annotations</div>
+        <div class="stat-number">{{ n_gm }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card h-100 shadow-sm">
+      <div class="card-body">
+        <div class="text-muted small mb-1"><i class="bi bi-repeat me-1"></i>Repeat Annotations</div>
+        <div class="stat-number">{{ n_re }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-header card-header-ph"><i class="bi bi-flower1 me-1"></i>Browse Species</div>
+      <div class="card-body">
+        <p>Search and filter across all plant species in the database.</p>
+        <a href="/species" class="btn btn-ph"><i class="bi bi-search me-1"></i>Browse</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-header card-header-ph"><i class="bi bi-bar-chart-line me-1"></i>Analyse</div>
+      <div class="card-body">
+        <p>Compare BUSCO scores, gene model statistics, and repeat content across annotations.</p>
+        <a href="/plots" class="btn btn-ph"><i class="bi bi-graph-up me-1"></i>Plots</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-header card-header-ph"><i class="bi bi-cloud-upload me-1"></i>Add Data</div>
+      <div class="card-body">
+        <p>Upload new gene model or repeat element annotations to the archive.</p>
+        <a href="/upload" class="btn btn-ph"><i class="bi bi-plus-circle me-1"></i>Upload</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

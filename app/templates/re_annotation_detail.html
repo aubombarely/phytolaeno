@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ ann.protocol.tool if ann.protocol else "RE Annotation" }} — Phytolaeno{% endblock %}
+{% block content %}
+{% set sp = ann.assembly.species %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/species">Species</a></li>
+    <li class="breadcrumb-item"><a href="/species/{{ sp.id }}"><em>{{ sp.name | replace("_", " ") }}</em></a></li>
+    <li class="breadcrumb-item"><a href="/assemblies/{{ ann.assembly.id }}">{{ ann.assembly.version }}</a></li>
+    <li class="breadcrumb-item active">{{ ann.protocol.tool if ann.protocol else "RE Annotation" }}</li>
+  </ol>
+</nav>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header card-header-ph"><i class="bi bi-repeat me-1"></i>{{ ann.protocol.tool if ann.protocol else "Repeat Annotation" }}</div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-4"><strong>Tool:</strong> {{ ann.protocol.tool if ann.protocol else "—" }}</div>
+      <div class="col-md-4"><strong>Version:</strong> {{ ann.protocol.tool_version if ann.protocol else "—" }}</div>
+      <div class="col-md-4"><strong>Total repeats:</strong> {{ "%.2f"|format(ann.total_pct) ~ "%" if ann.total_pct else "—" }}</div>
+    </div>
+    {% if ann.protocol and ann.protocol.commands %}
+    <div class="mt-2"><strong>Commands:</strong><pre class="bg-light p-2 rounded small mt-1">{{ ann.protocol.commands }}</pre></div>
+    {% endif %}
+    {% if ann.protocol and ann.protocol.notes %}
+    <div class="mt-2"><strong>Notes:</strong> {{ ann.protocol.notes }}</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if ann.raw_output %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header card-header-ph"><i class="bi bi-file-text me-1"></i>Raw Output</div>
+  <div class="card-body"><pre class="mb-0">{{ ann.raw_output }}</pre></div>
+</div>
+{% endif %}
+
+{% if ann.parsed_results and ann.parsed_results | length > 1 %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header card-header-ph"><i class="bi bi-pie-chart me-1"></i>Repeat Breakdown</div>
+  <div class="card-body">
+    <div id="pie_chart" style="height:350px;"></div>
+    <table class="table table-sm table-striped mt-3">
+      <thead><tr><th>Class</th><th>%</th></tr></thead>
+      <tbody>
+        {% for k, v in ann.parsed_results.items() %}
+        {% if k != "raw" %}
+        <tr><td>{{ k }}</td><td>{{ "%.2f"|format(v) if v is number else v }}</td></tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if ann.parsed_results and ann.parsed_results | length > 1 %}
+<script>
+  const data = {{ ann.parsed_results | tojson }};
+  const labels = Object.keys(data).filter(k => k !== "raw");
+  const values = labels.map(k => data[k]);
+  Plotly.newPlot("pie_chart", [{
+    type: "pie", labels, values,
+    textinfo: "label+percent",
+    marker: { colors: ["#2d6a4f","#52b788","#74c69d","#b7e4c7","#1b4332","#40916c","#95d5b2","#d8f3dc"] }
+  }], { margin: {t:10,b:10}, showlegend: true });
+</script>
+{% endif %}
+{% endblock %}
