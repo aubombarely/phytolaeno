@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -67,6 +67,8 @@ def species_list(
 @router.get("/species/{species_id}", name="species_detail")
 def species_detail(species_id: int, request: Request, db: Session = Depends(get_db)):
     sp = db.query(models.Species).filter(models.Species.id == species_id).first()
+    if sp is None:
+        raise HTTPException(status_code=404, detail="Species not found")
     return templates.TemplateResponse("species_detail.html", {
         "request": request,
         "species": sp,

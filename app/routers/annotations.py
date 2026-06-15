@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
@@ -15,6 +15,8 @@ def gm_detail(annotation_id: int, request: Request, db: Session = Depends(get_db
     ann = db.query(models.GeneModelAnnotation).filter(
         models.GeneModelAnnotation.id == annotation_id
     ).first()
+    if ann is None:
+        raise HTTPException(status_code=404, detail="Gene model annotation not found")
     return templates.TemplateResponse("gm_annotation_detail.html", {
         "request": request,
         "ann": ann,
@@ -26,6 +28,8 @@ def re_detail(annotation_id: int, request: Request, db: Session = Depends(get_db
     ann = db.query(models.RepeatAnnotation).filter(
         models.RepeatAnnotation.id == annotation_id
     ).first()
+    if ann is None:
+        raise HTTPException(status_code=404, detail="Repeat annotation not found")
     return templates.TemplateResponse("re_annotation_detail.html", {
         "request": request,
         "ann": ann,
