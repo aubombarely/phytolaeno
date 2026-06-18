@@ -19,23 +19,17 @@ Species key from the GAQET stats file.  Existing rows are overwritten with
 new data; new rows are appended.  Rows not present in the manifest are
 preserved unchanged.
 
-Manifest format (tab-separated, lines starting with # are ignored):
-    species_label   ncbi_taxid  gaqet_dir  assembly_qc_dir  earlgrey_dir  rdna_log  re_annotation_version
+Manifest format (tab-separated, lines starting with # are ignored).
+Use generate_manifest.py to produce this file automatically.
 
-    species_label        – label used in log messages (no spaces recommended)
-    ncbi_taxid           – NCBI taxonomy ID (informational only)
-    gaqet_dir            – directory that contains AnnotationQC_{timestamp}/ subdirs
-    assembly_qc_dir      – AssemblyQC/ directory (BUSCO + QUAST);  leave empty if absent
-    earlgrey_dir         – EarlGrey output dir with *.highLevelCount.txt; leave empty if absent
-    rdna_log             – path to Barrnap+tRNAscan log file;       leave empty if absent
-    re_annotation_version – free-text version label for the RE annotation; leave empty if absent
-
-Example manifest row:
-    Antox_HELIXER   241857  /data/Antiaris_toxicaria/03_AbInitio/00_HELIXER  \\
-        /data/Antiaris_toxicaria/00_GenomeSource/NCBI_GCA.../AssemblyQC      \\
-        /data/Antiaris_toxicaria/10_RepetitiveLandscape/02_EarlGrey/.../     \\
-        /data/Antiaris_toxicaria/10_RepetitiveLandscape/10_rDNAtDNA/Run.log  \\
-        EarlGrey_v4.2.2
+    species_name           – species directory name
+    assembly_name          – stem of *_genome.fasta (without _genome.fasta suffix)
+    assembly_qc_dir        – AssemblyQC/ directory (BUSCO + QUAST);  leave empty if absent
+    repelem_annotation_name – RE annotation identifier, e.g. Arabidopsis_thaliana_EARLGREY
+    rdna_log               – path to Barrnap+tRNAscan log file;      leave empty if absent
+    earlgrey_dir           – EarlGrey output dir with *.highLevelCount.txt; leave empty if absent
+    gene_annotation_name   – gene annotation identifier, e.g. Arabidopsis_thaliana_HELIXER
+    gaqet_dir              – directory that contains AnnotationQC_{timestamp}/ subdirs
 
 Usage:
     python collect_annotation_stats.py --manifest manifest.tsv --output combined_stats.tsv
@@ -222,6 +216,7 @@ def parse_earlgrey(earlgrey_dir: Path) -> dict:
 
 _COLUMN_ORDER = [
     # Identity
+    "species_name", "assembly_name", "gene_annotation_name", "repelem_annotation_name",
     "Species", "NCBI_TaxID", "Assembly_Version",
     # Assembly QC
     "Assembly_BUSCO_viridiplantae_odb10", "Assembly_BUSCO_embryophyta_odb10",
@@ -229,7 +224,6 @@ _COLUMN_ORDER = [
     "Assembly_GC_pct", "Assembly_N50_bp", "Assembly_N90_bp", "Assembly_auN_bp",
     "Assembly_L50", "Assembly_L90", "Assembly_Ns_per_100kbp",
     # Repetitive elements
-    "Repetitive_Elements_Annotation_Version",
     "RE_DNA_pct", "RE_RollingCircle_pct", "RE_Penelope_pct", "RE_LINE_pct",
     "RE_SINE_pct", "RE_LTR_pct", "RE_Other_pct", "RE_Unclassified_pct", "RE_NonRepeat_pct",
     "RE_DNA_Coverage_bp", "RE_RollingCircle_Coverage_bp", "RE_Penelope_Coverage_bp",
@@ -330,13 +324,13 @@ def parse_rdna_log(log_path: Path) -> dict:
 # ── Output handling ───────────────────────────────────────────────────────────
 
 def load_existing(output_path: Path) -> dict:
-    """Load an existing output TSV as a dict keyed by Species."""
+    """Load an existing output TSV as a dict keyed by gene_annotation_name."""
     df = pd.read_csv(output_path, sep="\t", dtype=str)
-    if "Species" not in df.columns:
+    if "gene_annotation_name" not in df.columns:
         raise ValueError(
-            f"{output_path}: missing 'Species' column — cannot update"
+            f"{output_path}: missing 'gene_annotation_name' column — cannot update"
         )
-    return {str(row["Species"]): row.to_dict() for _, row in df.iterrows()}
+    return {str(row["gene_annotation_name"]): row.to_dict() for _, row in df.iterrows()}
 
 
 def write_output(rows: dict, output_path: Path) -> None:
@@ -364,7 +358,7 @@ def main():
     args = parser.parse_args()
 
     manifest = pd.read_csv(args.manifest, sep="\t", comment="#", dtype=str)
-    required = {"species_label", "gaqet_dir"}
+    required = {"gene_annotation_name", "gaqet_dir"}
     missing = required - set(manifest.columns)
     if missing:
         log.error(f"Manifest is missing required columns: {missing}")
@@ -379,7 +373,7 @@ def main():
     n_ok = n_fail = 0
 
     for _, mrow in manifest.iterrows():
-        label = str(mrow.get("species_label", "?"))
+        label = str(mrow.get("gene_annotation_name", "?"))
         try:
             gaqet_dir = Path(str(mrow["gaqet_dir"]).strip())
             if not gaqet_dir.exists():
@@ -389,15 +383,18 @@ def main():
             log.info(f"{label}: using {annotationqc_dir.name}")
 
             row = parse_gaqet_stats(annotationqc_dir)
-            species_key = str(row["Species"])
 
             # Rename Annotation_Version to Gene_Model_Annotation_Version
             if "Annotation_Version" in row:
                 row["Gene_Model_Annotation_Version"] = row.pop("Annotation_Version")
 
-            # RE annotation version from manifest (optional)
-            re_ver = _opt(mrow.get("re_annotation_version"))
-            row["Repetitive_Elements_Annotation_Version"] = str(re_ver) if re_ver else ""
+            # Identity fields from manifest
+            row["species_name"]            = str(mrow.get("species_name", ""))
+            row["assembly_name"]           = str(mrow.get("assembly_name", ""))
+            row["gene_annotation_name"]    = label
+            row["repelem_annotation_name"] = str(mrow.get("repelem_annotation_name", ""))
+
+            species_key = label
 
             # Assembly-level data (BUSCO + QUAST)
             assembly_qc_dir = _opt(mrow.get("assembly_qc_dir"))

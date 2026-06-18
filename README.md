@@ -169,11 +169,18 @@ The script expects the following structure under `BySpecies/`:
     └── 10_rDNAtDNA/              ← rDNA/tRNA log
 ```
 
-One row is produced per annotation directory found under `03_AbInitioPredictions/`. The `species_label` is set to `{species_name}_{annotation_id}` (e.g. `Arabidopsis_thaliana_00_HELIXER`).
+One manifest row is produced per annotation directory found under `03_AbInitioPredictions/`. The naming conventions are:
 
-If more than one candidate is found for `assembly_qc_dir`, `earlgrey_dir`, or `rdna_log`, the field is left blank and a warning lists all candidates for manual review. Annotation directories without a `AnnotationQC_*` subdirectory are skipped with a warning.
+| Column | Derived from |
+|--------|-------------|
+| `species_name` | Species directory name |
+| `assembly_name` | Stem of `*_genome.fasta` (without `_genome.fasta`) |
+| `gene_annotation_name` | `{species_name}_{TOOL}` — e.g. `Arabidopsis_thaliana_HELIXER` |
+| `repelem_annotation_name` | `{species_name}_{RE_TOOL}` — e.g. `Arabidopsis_thaliana_EARLGREY` |
 
-The `re_annotation_version` column is always left blank — fill it in manually before running `collect_annotation_stats.py`.
+If more than one candidate is found for a single-value field (`assembly_qc_dir`, `earlgrey_dir`, `rdna_log`) the field is left blank and a warning lists all candidates for manual review. Annotation directories without an `AnnotationQC_*` subdirectory are skipped with a warning.
+
+All warnings are written to both the console and a timestamped file (`generate_manifest_warning_{timestamp}.log`). The log file is deleted automatically if no warnings were produced.
 
 ---
 
@@ -191,34 +198,36 @@ python scripts/collect_annotation_stats.py \
 
 Tab-separated file with one row per annotation. Lines starting with `#` are ignored. Column order must match:
 
+Use `generate_manifest.py` to produce this file automatically. Column order must match:
+
 | Column | Required | Description |
 |--------|----------|-------------|
-| `species_label` | Yes | Short label used in log messages (no spaces recommended) |
-| `ncbi_taxid` | No | NCBI taxonomy ID (informational only) |
-| `gaqet_dir` | Yes | Directory containing `AnnotationQC_{timestamp}/` subdirectories |
+| `species_name` | Yes | Species directory name |
+| `assembly_name` | No | Stem of `*_genome.fasta` (without `_genome.fasta` suffix) |
 | `assembly_qc_dir` | No | `AssemblyQC/` directory with BUSCO and QUAST subdirectories |
-| `earlgrey_dir` | No | EarlGrey output directory containing `*.highLevelCount.txt` |
+| `repelem_annotation_name` | No | RE annotation identifier (e.g. `Arabidopsis_thaliana_EARLGREY`) |
 | `rdna_log` | No | Path to a Barrnap + tRNAscan-SE combined log file |
-| `re_annotation_version` | No | Free-text version label for the repeat element annotation (e.g. `EarlGrey_v4.2.2`) |
+| `earlgrey_dir` | No | EarlGrey output directory containing `*.highLevelCount.txt` |
+| `gene_annotation_name` | Yes | Gene annotation identifier (e.g. `Arabidopsis_thaliana_HELIXER`) |
+| `gaqet_dir` | Yes | Directory containing `AnnotationQC_{timestamp}/` subdirectories |
 
 Example:
 ```
-species_label    ncbi_taxid  gaqet_dir                           assembly_qc_dir                    earlgrey_dir                    rdna_log                           re_annotation_version
-Antox_HELIXER    241857      /data/Antiaris/03_AbInitio/HELIXER  /data/Antiaris/00_Source/AssemblyQC /data/Antiaris/10_Rep/EarlGrey/  /data/Antiaris/10_Rep/rDNA/Run.log EarlGrey_v4.2.2
+species_name             assembly_name                        assembly_qc_dir                    repelem_annotation_name         rdna_log                           earlgrey_dir                    gene_annotation_name             gaqet_dir
+Arabidopsis_thaliana     Arabidopsis_thaliana_TAIR10_genome   /data/Araport11/AssemblyQC         Arabidopsis_thaliana_EARLGREY   /data/10_rDNA/Run.log              /data/EarlGrey/summaryFiles/    Arabidopsis_thaliana_HELIXER     /data/03_AbInitio/00_HELIXER
 # this row is a comment and will be ignored
-Arath_BRAKER     3702        /data/Arabidopsis/03_AbInitio/BRAKER
 ```
 
 ### What is collected
 
 | Source | Output columns |
 |--------|---------------|
+| Manifest identity columns | `species_name`, `assembly_name`, `gene_annotation_name`, `repelem_annotation_name` |
 | GAQET `*_GAQET.stats.tsv` | All annotation QC columns pass through (Species, gene/transcript counts, BUSCO, PSAURON, OMArk, DETENGA, protein hits…); `Annotation_Version` is renamed to `Gene_Model_Annotation_Version` |
-| Manifest `re_annotation_version` | `Repetitive_Elements_Annotation_Version` |
 | AssemblyQC BUSCO | `Assembly_BUSCO_viridiplantae_odb10`, `Assembly_BUSCO_embryophyta_odb10` |
 | QUAST `report.txt` | `Assembly_Total_Length_bp`, `Assembly_Contigs_N`, `Assembly_Largest_Contig_bp`, `Assembly_GC_pct`, `Assembly_N50_bp`, `Assembly_N90_bp`, `Assembly_auN_bp`, `Assembly_L50`, `Assembly_L90`, `Assembly_Ns_per_100kbp` |
 | EarlGrey `*.highLevelCount.txt` | `RE_{Class}_pct` and `RE_{Class}_Coverage_bp` for DNA, Rolling Circle, Penelope, LINE, SINE, LTR, Other, Unclassified, Non-Repeat; plus `RE_Genome_Size_bp` |
-| Barrnap + tRNAscan log | `rRNA_18S_N`, `rRNA_18S_partial_N`, `rRNA_28S_N`, `rRNA_28S_partial_N`, `rRNA_5.8S_N`, `rRNA_5S_N`, `rRNA_5S_partial_N`, `tRNA_N`, `tRNA_pseudogene_N` |
+| Barrnap + tRNAscan log | `rRNA_18S_N`, `rRNA_18S_partial_N`, `rRNA_28S_N`, `rRNA_28S_partial_N`, `rRNA_5.8S_N`, `rRNA_5.8S_partial_N`, `rRNA_5S_N`, `rRNA_5S_partial_N`, `tRNA_gene_N`, `tRNA_pseudogene_N`, `tRNA_exon_N` |
 
 ### Directory conventions expected
 
