@@ -20,20 +20,22 @@ new data; new rows are appended.  Rows not present in the manifest are
 preserved unchanged.
 
 Manifest format (tab-separated, lines starting with # are ignored):
-    species_label   ncbi_taxid  gaqet_dir  assembly_qc_dir  earlgrey_dir  rdna_log
+    species_label   ncbi_taxid  gaqet_dir  assembly_qc_dir  earlgrey_dir  rdna_log  re_annotation_version
 
-    species_label   – label used in log messages (no spaces recommended)
-    ncbi_taxid      – NCBI taxonomy ID (informational only)
-    gaqet_dir       – directory that contains AnnotationQC_{timestamp}/ subdirs
-    assembly_qc_dir – AssemblyQC/ directory (BUSCO + QUAST);  leave empty if absent
-    earlgrey_dir    – EarlGrey output dir with *.highLevelCount.txt; leave empty if absent
-    rdna_log        – path to Barrnap+tRNAscan log file;               leave empty if absent
+    species_label        – label used in log messages (no spaces recommended)
+    ncbi_taxid           – NCBI taxonomy ID (informational only)
+    gaqet_dir            – directory that contains AnnotationQC_{timestamp}/ subdirs
+    assembly_qc_dir      – AssemblyQC/ directory (BUSCO + QUAST);  leave empty if absent
+    earlgrey_dir         – EarlGrey output dir with *.highLevelCount.txt; leave empty if absent
+    rdna_log             – path to Barrnap+tRNAscan log file;       leave empty if absent
+    re_annotation_version – free-text version label for the RE annotation; leave empty if absent
 
 Example manifest row:
     Antox_HELIXER   241857  /data/Antiaris_toxicaria/03_AbInitio/00_HELIXER  \\
         /data/Antiaris_toxicaria/00_GenomeSource/NCBI_GCA.../AssemblyQC      \\
         /data/Antiaris_toxicaria/10_RepetitiveLandscape/02_EarlGrey/.../     \\
-        /data/Antiaris_toxicaria/10_RepetitiveLandscape/10_rDNAtDNA/Run.log
+        /data/Antiaris_toxicaria/10_RepetitiveLandscape/10_rDNAtDNA/Run.log  \\
+        EarlGrey_v4.2.2
 
 Usage:
     python collect_annotation_stats.py --manifest manifest.tsv --output combined_stats.tsv
@@ -216,6 +218,52 @@ def parse_earlgrey(earlgrey_dir: Path) -> dict:
     return result
 
 
+# ── Output column order ───────────────────────────────────────────────────────
+
+_COLUMN_ORDER = [
+    # Identity
+    "Species", "NCBI_TaxID", "Assembly_Version",
+    # Assembly QC
+    "Assembly_BUSCO_viridiplantae_odb10", "Assembly_BUSCO_embryophyta_odb10",
+    "Assembly_Total_Length_bp", "Assembly_Contigs_N", "Assembly_Largest_Contig_bp",
+    "Assembly_GC_pct", "Assembly_N50_bp", "Assembly_N90_bp", "Assembly_auN_bp",
+    "Assembly_L50", "Assembly_L90", "Assembly_Ns_per_100kbp",
+    # Repetitive elements
+    "Repetitive_Elements_Annotation_Version",
+    "RE_DNA_pct", "RE_RollingCircle_pct", "RE_Penelope_pct", "RE_LINE_pct",
+    "RE_SINE_pct", "RE_LTR_pct", "RE_Other_pct", "RE_Unclassified_pct", "RE_NonRepeat_pct",
+    "RE_DNA_Coverage_bp", "RE_RollingCircle_Coverage_bp", "RE_Penelope_Coverage_bp",
+    "RE_LINE_Coverage_bp", "RE_SINE_Coverage_bp", "RE_LTR_Coverage_bp",
+    "RE_Other_Coverage_bp", "RE_Unclassified_Coverage_bp", "RE_Genome_Size_bp",
+    "rRNA_18S_N", "rRNA_18S_partial_N", "rRNA_28S_N", "rRNA_28S_partial_N",
+    "rRNA_5.8S_N", "rRNA_5S_N", "rRNA_5S_partial_N", "tRNA_N", "tRNA_pseudogene_N",
+    # Gene model annotation
+    "Gene_Model_Annotation_Version",
+    "Gene_Models (N)", "Transcript_Models (N)", "CDS_Models (N)", "Exons (N)",
+    "UTR5' (N)", "UTR3' (N)", "Both sides UTR' (N)", "Overlapping_Gene_Models (N)",
+    "Single Exon Gene Models (N)", "Single Exon Transcripts (N)",
+    "Total Gene Space (Mb)", "Mean Gene Model Length (bp)", "Mean CDS Model Length (bp)",
+    "Mean Exon Length (bp)", "Mean Intron Length (bp)",
+    "Longest Gene Model Length (bp)", "Longest CDS Model Length (bp)", "Longest Intron Length (bp)",
+    "Shortest Gene Model Length (bp)", "Shortest CDS Model Length (bp)", "Shortest Intron Length (bp)",
+    "Models with early STOP", "Models START missing", "Models STOP missing", "Models START & STOP missing",
+    "Annotation_BUSCO_viridiplantae_odb10", "Annotation_BUSCO_embryophyta_odb10",
+    "PSAURON SCORE", "DETENGA_FPV", "DETENGA_FP%",
+    "OMArk Consistency Results", "OMArk Completeness Results", "OMArk Species Composition",
+    "ProteinsWithTREMBLHits (%)", "ProteinsWithSWISSPROTHits (%)",
+]
+
+
+def _round_value(v) -> str:
+    """Round a decimal string to 2 dp; leave integers and non-numerics unchanged."""
+    if not isinstance(v, str) or "." not in v:
+        return v
+    try:
+        return str(round(float(v), 2))
+    except (ValueError, TypeError):
+        return v
+
+
 # ── rDNA / tRNA log parser ────────────────────────────────────────────────────
 
 def parse_rdna_log(log_path: Path) -> dict:
@@ -284,6 +332,12 @@ def load_existing(output_path: Path) -> dict:
 
 def write_output(rows: dict, output_path: Path) -> None:
     df = pd.DataFrame(list(rows.values()))
+    # Apply rounding to decimal-valued cells
+    df = df.map(_round_value)
+    # Reorder columns: known columns first (in defined order), then any extras
+    known = [c for c in _COLUMN_ORDER if c in df.columns]
+    extras = [c for c in df.columns if c not in _COLUMN_ORDER]
+    df = df[known + extras]
     df.to_csv(output_path, sep="\t", index=False)
     log.info(f"Written {len(df)} rows to {output_path}")
 
@@ -327,6 +381,14 @@ def main():
 
             row = parse_gaqet_stats(annotationqc_dir)
             species_key = str(row["Species"])
+
+            # Rename Annotation_Version to Gene_Model_Annotation_Version
+            if "Annotation_Version" in row:
+                row["Gene_Model_Annotation_Version"] = row.pop("Annotation_Version")
+
+            # RE annotation version from manifest (optional)
+            re_ver = _opt(mrow.get("re_annotation_version"))
+            row["Repetitive_Elements_Annotation_Version"] = str(re_ver) if re_ver else ""
 
             # Assembly-level data (BUSCO + QUAST)
             assembly_qc_dir = _opt(mrow.get("assembly_qc_dir"))

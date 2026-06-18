@@ -162,11 +162,12 @@ Tab-separated file with one row per annotation. Lines starting with `#` are igno
 | `assembly_qc_dir` | No | `AssemblyQC/` directory with BUSCO and QUAST subdirectories |
 | `earlgrey_dir` | No | EarlGrey output directory containing `*.highLevelCount.txt` |
 | `rdna_log` | No | Path to a Barrnap + tRNAscan-SE combined log file |
+| `re_annotation_version` | No | Free-text version label for the repeat element annotation (e.g. `EarlGrey_v4.2.2`) |
 
 Example:
 ```
-species_label    ncbi_taxid  gaqet_dir                           assembly_qc_dir                    earlgrey_dir                    rdna_log
-Antox_HELIXER    241857      /data/Antiaris/03_AbInitio/HELIXER  /data/Antiaris/00_Source/AssemblyQC /data/Antiaris/10_Rep/EarlGrey/  /data/Antiaris/10_Rep/rDNA/Run.log
+species_label    ncbi_taxid  gaqet_dir                           assembly_qc_dir                    earlgrey_dir                    rdna_log                           re_annotation_version
+Antox_HELIXER    241857      /data/Antiaris/03_AbInitio/HELIXER  /data/Antiaris/00_Source/AssemblyQC /data/Antiaris/10_Rep/EarlGrey/  /data/Antiaris/10_Rep/rDNA/Run.log EarlGrey_v4.2.2
 # this row is a comment and will be ignored
 Arath_BRAKER     3702        /data/Arabidopsis/03_AbInitio/BRAKER
 ```
@@ -175,7 +176,8 @@ Arath_BRAKER     3702        /data/Arabidopsis/03_AbInitio/BRAKER
 
 | Source | Output columns |
 |--------|---------------|
-| GAQET `*_GAQET.stats.tsv` | All annotation QC columns pass through as-is (Species, gene/transcript counts, BUSCO, PSAURON, OMArk, DETENGA, protein hits…) |
+| GAQET `*_GAQET.stats.tsv` | All annotation QC columns pass through (Species, gene/transcript counts, BUSCO, PSAURON, OMArk, DETENGA, protein hits…); `Annotation_Version` is renamed to `Gene_Model_Annotation_Version` |
+| Manifest `re_annotation_version` | `Repetitive_Elements_Annotation_Version` |
 | AssemblyQC BUSCO | `Assembly_BUSCO_viridiplantae_odb10`, `Assembly_BUSCO_embryophyta_odb10` |
 | QUAST `report.txt` | `Assembly_Total_Length_bp`, `Assembly_Contigs_N`, `Assembly_Largest_Contig_bp`, `Assembly_GC_pct`, `Assembly_N50_bp`, `Assembly_N90_bp`, `Assembly_auN_bp`, `Assembly_L50`, `Assembly_L90`, `Assembly_Ns_per_100kbp` |
 | EarlGrey `*.highLevelCount.txt` | `RE_{Class}_pct` and `RE_{Class}_Coverage_bp` for DNA, Rolling Circle, Penelope, LINE, SINE, LTR, Other, Unclassified, Non-Repeat; plus `RE_Genome_Size_bp` |
