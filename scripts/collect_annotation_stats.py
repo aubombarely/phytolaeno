@@ -236,7 +236,8 @@ _COLUMN_ORDER = [
     "RE_LINE_Coverage_bp", "RE_SINE_Coverage_bp", "RE_LTR_Coverage_bp",
     "RE_Other_Coverage_bp", "RE_Unclassified_Coverage_bp", "RE_Genome_Size_bp",
     "rRNA_18S_N", "rRNA_18S_partial_N", "rRNA_28S_N", "rRNA_28S_partial_N",
-    "rRNA_5.8S_N", "rRNA_5S_N", "rRNA_5S_partial_N", "tRNA_N", "tRNA_pseudogene_N",
+    "rRNA_5.8S_N", "rRNA_5.8S_partial_N", "rRNA_5S_N", "rRNA_5S_partial_N",
+    "tRNA_N", "tRNA_pseudogene_N",
     # Gene model annotation
     "Gene_Model_Annotation_Version",
     "Gene_Models (N)", "Transcript_Models (N)", "CDS_Models (N)", "Exons (N)",
@@ -269,15 +270,16 @@ def _round_value(v) -> str:
 def parse_rdna_log(log_path: Path) -> dict:
     """Extract counts from the SUMMARY section of a Barrnap+tRNAscan log."""
     result = {
-        "rRNA_18S_N":         "",
-        "rRNA_18S_partial_N": "",
-        "rRNA_28S_N":         "",
-        "rRNA_28S_partial_N": "",
-        "rRNA_5.8S_N":        "",
-        "rRNA_5S_N":          "",
-        "rRNA_5S_partial_N":  "",
-        "tRNA_N":             "",
-        "tRNA_pseudogene_N":  "",
+        "rRNA_18S_N":          0,
+        "rRNA_18S_partial_N":  0,
+        "rRNA_28S_N":          0,
+        "rRNA_28S_partial_N":  0,
+        "rRNA_5.8S_N":         0,
+        "rRNA_5.8S_partial_N": 0,
+        "rRNA_5S_N":           0,
+        "rRNA_5S_partial_N":   0,
+        "tRNA_N":              0,
+        "tRNA_pseudogene_N":   0,
     }
 
     in_summary = False
@@ -293,11 +295,12 @@ def parse_rdna_log(log_path: Path) -> dict:
             if m:
                 count, product = int(m.group(1)), m.group(2).strip()
                 mapping = {
-                    "18S ribosomal RNA":           "rRNA_18S_N",
+                    "18S ribosomal RNA":            "rRNA_18S_N",
                     "18S ribosomal RNA (partial)":  "rRNA_18S_partial_N",
                     "28S ribosomal RNA":            "rRNA_28S_N",
                     "28S ribosomal RNA (partial)":  "rRNA_28S_partial_N",
                     "5.8S ribosomal RNA":           "rRNA_5.8S_N",
+                    "5.8S ribosomal RNA (partial)": "rRNA_5.8S_partial_N",
                     "5S ribosomal RNA":             "rRNA_5S_N",
                     "5S ribosomal RNA (partial)":   "rRNA_5S_partial_N",
                 }
