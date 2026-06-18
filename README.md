@@ -165,9 +165,10 @@ Tab-separated file with one row per annotation. Lines starting with `#` are igno
 
 Example:
 ```
-# species_label    ncbi_taxid  gaqet_dir                           assembly_qc_dir                    earlgrey_dir                    rdna_log
-Antox_HELIXER      241857      /data/Antiaris/03_AbInitio/HELIXER  /data/Antiaris/00_Source/AssemblyQC /data/Antiaris/10_Rep/EarlGrey/  /data/Antiaris/10_Rep/rDNA/Run.log
-Arath_BRAKER       3702        /data/Arabidopsis/03_AbInitio/BRAKER
+species_label    ncbi_taxid  gaqet_dir                           assembly_qc_dir                    earlgrey_dir                    rdna_log
+Antox_HELIXER    241857      /data/Antiaris/03_AbInitio/HELIXER  /data/Antiaris/00_Source/AssemblyQC /data/Antiaris/10_Rep/EarlGrey/  /data/Antiaris/10_Rep/rDNA/Run.log
+# this row is a comment and will be ignored
+Arath_BRAKER     3702        /data/Arabidopsis/03_AbInitio/BRAKER
 ```
 
 ### What is collected
