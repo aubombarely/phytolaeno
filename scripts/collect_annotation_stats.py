@@ -237,7 +237,7 @@ _COLUMN_ORDER = [
     "RE_Other_Coverage_bp", "RE_Unclassified_Coverage_bp", "RE_Genome_Size_bp",
     "rRNA_18S_N", "rRNA_18S_partial_N", "rRNA_28S_N", "rRNA_28S_partial_N",
     "rRNA_5.8S_N", "rRNA_5.8S_partial_N", "rRNA_5S_N", "rRNA_5S_partial_N",
-    "tRNA_N", "tRNA_pseudogene_N",
+    "tRNA_gene_N", "tRNA_pseudogene_N", "tRNA_exon_N",
     # Gene model annotation
     "Gene_Model_Annotation_Version",
     "Gene_Models (N)", "Transcript_Models (N)", "CDS_Models (N)", "Exons (N)",
@@ -278,8 +278,9 @@ def parse_rdna_log(log_path: Path) -> dict:
         "rRNA_5.8S_partial_N": 0,
         "rRNA_5S_N":           0,
         "rRNA_5S_partial_N":   0,
-        "tRNA_N":              0,
+        "tRNA_gene_N":         0,
         "tRNA_pseudogene_N":   0,
+        "tRNA_exon_N":         0,
     }
 
     in_summary = False
@@ -310,12 +311,17 @@ def parse_rdna_log(log_path: Path) -> dict:
 
             m = re.match(r"\s*(\d+)\s+tRNA\b", line)
             if m:
-                result["tRNA_N"] = int(m.group(1))
+                result["tRNA_gene_N"] = int(m.group(1))
                 continue
 
             m = re.match(r"\s*(\d+)\s+pseudogene\b", line)
             if m:
                 result["tRNA_pseudogene_N"] = int(m.group(1))
+                continue
+
+            m = re.match(r"\s*(\d+)\s+exon\b", line)
+            if m:
+                result["tRNA_exon_N"] = int(m.group(1))
                 continue
 
     return result
