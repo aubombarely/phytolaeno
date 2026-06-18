@@ -76,7 +76,8 @@ phytolaeno/
 │       ├── upload.html
 │       └── plots.html
 ├── scripts/
-│   └── import_excel.py      # Bulk import from Excel benchmark table
+│   ├── import_excel.py           # Bulk import from Excel benchmark table
+│   └── collect_annotation_stats.py  # Automated data collection from analysis outputs
 ├── requirements.txt
 ├── .env.example
 └── .gitignore
@@ -136,6 +137,60 @@ The script expects Sheet1 with one row per gene model annotation. It groups rows
 - Creates one **GeneModelAnnotation** per row (with auto-detected protocol from `Annotation_Methodology`)
 
 Re-running the script is safe — existing species and assemblies are looked up by name/version and reused.
+
+---
+
+## Automated Data Collection
+
+`collect_annotation_stats.py` collects metrics from analysis pipeline outputs (GAQET, QUAST, BUSCO, EarlGrey, Barrnap/tRNAscan) into a single TSV file ready for import. Designed for batch runs over hundreds of species.
+
+```bash
+python scripts/collect_annotation_stats.py \
+    --manifest manifest.tsv \
+    --output combined_stats.tsv
+```
+
+### Manifest format
+
+Tab-separated file with one row per annotation. Lines starting with `#` are ignored. Column order must match:
+
+| Column | Required | Description |
+|--------|----------|-------------|
+| `species_label` | Yes | Short label used in log messages (no spaces recommended) |
+| `ncbi_taxid` | No | NCBI taxonomy ID (informational only) |
+| `gaqet_dir` | Yes | Directory containing `AnnotationQC_{timestamp}/` subdirectories |
+| `assembly_qc_dir` | No | `AssemblyQC/` directory with BUSCO and QUAST subdirectories |
+| `earlgrey_dir` | No | EarlGrey output directory containing `*.highLevelCount.txt` |
+| `rdna_log` | No | Path to a Barrnap + tRNAscan-SE combined log file |
+
+Example:
+```
+# species_label    ncbi_taxid  gaqet_dir                           assembly_qc_dir                    earlgrey_dir                    rdna_log
+Antox_HELIXER      241857      /data/Antiaris/03_AbInitio/HELIXER  /data/Antiaris/00_Source/AssemblyQC /data/Antiaris/10_Rep/EarlGrey/  /data/Antiaris/10_Rep/rDNA/Run.log
+Arath_BRAKER       3702        /data/Arabidopsis/03_AbInitio/BRAKER
+```
+
+### What is collected
+
+| Source | Output columns |
+|--------|---------------|
+| GAQET `*_GAQET.stats.tsv` | All annotation QC columns pass through as-is (Species, gene/transcript counts, BUSCO, PSAURON, OMArk, DETENGA, protein hits…) |
+| AssemblyQC BUSCO | `Assembly_BUSCO_viridiplantae_odb10`, `Assembly_BUSCO_embryophyta_odb10` |
+| QUAST `report.txt` | `Assembly_Total_Length_bp`, `Assembly_Contigs_N`, `Assembly_Largest_Contig_bp`, `Assembly_GC_pct`, `Assembly_N50_bp`, `Assembly_N90_bp`, `Assembly_auN_bp`, `Assembly_L50`, `Assembly_L90`, `Assembly_Ns_per_100kbp` |
+| EarlGrey `*.highLevelCount.txt` | `RE_{Class}_pct` and `RE_{Class}_Coverage_bp` for DNA, Rolling Circle, Penelope, LINE, SINE, LTR, Other, Unclassified, Non-Repeat; plus `RE_Genome_Size_bp` |
+| Barrnap + tRNAscan log | `rRNA_18S_N`, `rRNA_18S_partial_N`, `rRNA_28S_N`, `rRNA_28S_partial_N`, `rRNA_5.8S_N`, `rRNA_5S_N`, `rRNA_5S_partial_N`, `tRNA_N`, `tRNA_pseudogene_N` |
+
+### Directory conventions expected
+
+- **GAQET**: `gaqet_dir/AnnotationQC_{timestamp}/Species_GAQET.stats.tsv` — the script auto-selects the most recent `AnnotationQC_*` subdirectory.
+- **BUSCO**: subdirectory names inside `assembly_qc_dir` must contain both `busco` and either `virid` (viridiplantae) or `embry` (embryophyta).
+- **QUAST**: subdirectory name inside `assembly_qc_dir` must contain `quast`; the `report.txt` file is parsed inside it.
+- **EarlGrey**: `*.highLevelCount.txt` is searched directly in `earlgrey_dir`.
+- **rDNA log**: the SUMMARY section at the end of the log file is parsed; the rest is ignored.
+
+### Update behaviour
+
+When `--output` already exists, rows are matched by the `Species` value from the GAQET stats file. Existing rows are overwritten with new data; rows not present in the manifest are preserved unchanged; new rows are appended. This allows incremental updates as new species are processed.
 
 ---
 
