@@ -76,8 +76,9 @@ phytolaeno/
 │       ├── upload.html
 │       └── plots.html
 ├── scripts/
-│   ├── import_excel.py           # Bulk import from Excel benchmark table
-│   └── collect_annotation_stats.py  # Automated data collection from analysis outputs
+│   ├── import_excel.py               # Bulk import from Excel benchmark table
+│   ├── generate_manifest.py          # Auto-generate manifest from BySpecies/ directory tree
+│   └── collect_annotation_stats.py   # Automated data collection from analysis outputs
 ├── requirements.txt
 ├── .env.example
 └── .gitignore
@@ -137,6 +138,42 @@ The script expects Sheet1 with one row per gene model annotation. It groups rows
 - Creates one **GeneModelAnnotation** per row (with auto-detected protocol from `Annotation_Methodology`)
 
 Re-running the script is safe — existing species and assemblies are looked up by name/version and reused.
+
+---
+
+## Generating the Manifest
+
+Instead of filling the manifest by hand, use `generate_manifest.py` to auto-discover analysis outputs from a `BySpecies/` directory tree.
+
+```bash
+# All species
+python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv
+
+# Specific species only
+python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
+    --species Arabidopsis_thaliana Nicotiana_benthamiana
+```
+
+The script expects the following structure under `BySpecies/`:
+
+```
+{species_name}/
+├── 00_GenomeSource/
+│   └── {assembly_id}/
+│       └── AssemblyQC/          ← QUAST + BUSCO
+├── 03_AbInitioPredictions/
+│   └── {annotation_id}/         ← one manifest row per directory here
+│       └── AnnotationQC_{ts}/   ← GAQET output
+└── 10_RepetitiveLandscape/
+    ├── 02_EarlGrey/              ← repeat composition
+    └── 10_rDNAtDNA/              ← rDNA/tRNA log
+```
+
+One row is produced per annotation directory found under `03_AbInitioPredictions/`. The `species_label` is set to `{species_name}_{annotation_id}` (e.g. `Arabidopsis_thaliana_00_HELIXER`).
+
+If more than one candidate is found for `assembly_qc_dir`, `earlgrey_dir`, or `rdna_log`, the field is left blank and a warning lists all candidates for manual review. Annotation directories without a `AnnotationQC_*` subdirectory are skipped with a warning.
+
+The `re_annotation_version` column is always left blank — fill it in manually before running `collect_annotation_stats.py`.
 
 ---
 
