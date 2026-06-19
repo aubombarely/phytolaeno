@@ -267,6 +267,11 @@ def _summary_table(
     re_tool_counts: Counter,
     n_annotations: int,
     gm_tool_counts: Counter,
+    n_missing_assembly_qc: int,
+    n_skip_gaqet: int,
+    n_skip_no_assembly: int,
+    n_skip_no_link: int,
+    n_skip_ambiguous: int,
 ) -> str:
     """Return a formatted ASCII summary table as a single string."""
     totals = [
@@ -275,16 +280,29 @@ def _summary_table(
         ("RE annotations",         n_re_annots),
         ("Gene model annotations", n_annotations),
     ]
+    missing = [
+        ("Missing AssemblyQC (QUAST + BUSCO)",  n_missing_assembly_qc),
+        ("Skipped: no AnnotationQC_* (GAQET)",  n_skip_gaqet),
+        ("Skipped: no assemblies found",         n_skip_no_assembly),
+        ("Skipped: no GFF3 assembly link",       n_skip_no_link),
+        ("Skipped: ambiguous GFF3 assembly link",n_skip_ambiguous),
+    ]
     re_rows = sorted(re_tool_counts.items())
     gm_rows = sorted(gm_tool_counts.items())
 
     all_labels  = (
         [r[0] for r in totals]
+        + [r[0] for r in missing]
         + ["RE tool breakdown", "Gene model tool breakdown"]
         + [r[0] for r in re_rows]
         + [r[0] for r in gm_rows]
     )
-    all_counts  = [r[1] for r in totals] + [r[1] for r in re_rows] + [r[1] for r in gm_rows]
+    all_counts  = (
+        [r[1] for r in totals]
+        + [r[1] for r in missing]
+        + [r[1] for r in re_rows]
+        + [r[1] for r in gm_rows]
+    )
     w_label     = max(len(l) for l in all_labels)
     w_count     = max((len(str(c)) for c in all_counts), default=1)
     w_count     = max(w_count, len("Count"))
@@ -297,6 +315,9 @@ def _summary_table(
 
     lines = [sep, row("Metric", "Count"), sep]
     for label, count in totals:
+        lines.append(row(label, count))
+    lines += [sep, section("Missing / Skipped"), sep]
+    for label, count in missing:
         lines.append(row(label, count))
     lines += [sep, section("RE tool breakdown"), sep]
     for t, c in re_rows:
@@ -359,7 +380,8 @@ def main():
             log.warning(f"Species not found in root: {', '.join(sorted(missing))}")
 
     rows = []
-    n_species = n_annotations = n_skipped = 0
+    n_species = n_annotations = 0
+    n_skip_gaqet = n_skip_no_assembly = n_skip_no_link = n_skip_ambiguous = 0
     tool_counts: Counter    = Counter()
     re_tool_counts: Counter = Counter()
     seen_re_annots: set     = set()
@@ -378,7 +400,7 @@ def main():
                 log.warning(
                     f"{species_name}/{ann_dir.name}: no AnnotationQC_* directory — skipping"
                 )
-                n_skipped += 1
+                n_skip_gaqet += 1
                 continue
 
             # Link annotation to assembly
@@ -386,7 +408,7 @@ def main():
                 assembly_name, assembly_qc_dir, equiv_seqid_file = assemblies[0]
             elif len(assemblies) == 0:
                 log.warning(f"{species_name}/{ann_dir.name}: no assemblies found — skipping")
-                n_skipped += 1
+                n_skip_no_assembly += 1
                 continue
             else:
                 matched = [a for a in assemblies if annotation_links_assembly(ann_dir, a[0])]
@@ -394,7 +416,7 @@ def main():
                     log.warning(
                         f"{species_name}/{ann_dir.name}: no assembly linked via GFF3 filename — skipping"
                     )
-                    n_skipped += 1
+                    n_skip_no_link += 1
                     continue
                 if len(matched) > 1:
                     log.warning(
@@ -402,7 +424,7 @@ def main():
                         f"skipping. Matched assemblies:\n"
                         + "\n".join(f"  {n}" for n, _, _ in matched)
                     )
-                    n_skipped += 1
+                    n_skip_ambiguous += 1
                     continue
                 assembly_name, assembly_qc_dir, equiv_seqid_file = matched[0]
 
@@ -441,10 +463,25 @@ def main():
     else:
         log.info(f"Warnings written to {warn_log_path}")
 
-    n_assemblies = len({r["assembly_name"] for r in rows if r["assembly_name"]})
-    n_re_annots  = sum(re_tool_counts.values())
-    table        = _summary_table(n_species, n_assemblies, n_re_annots,
-                                  re_tool_counts, n_annotations, tool_counts)
+    n_assemblies          = len({r["assembly_name"] for r in rows if r["assembly_name"]})
+    n_re_annots           = sum(re_tool_counts.values())
+    n_missing_assembly_qc = len({r["assembly_name"] for r in rows
+                                  if r["assembly_name"] and not r["assembly_qc_dir"]})
+    n_skipped             = n_skip_gaqet + n_skip_no_assembly + n_skip_no_link + n_skip_ambiguous
+    table = _summary_table(
+        n_species, n_assemblies, n_re_annots, re_tool_counts,
+        n_annotations, tool_counts,
+        n_missing_assembly_qc,
+        n_skip_gaqet, n_skip_no_assembly, n_skip_no_link, n_skip_ambiguous,
+    )
+
+    summary_log_path = Path(f"generate_manifest_summary_{timestamp}.log")
+    with open(summary_log_path, "w") as fh:
+        fh.write(f"generate_manifest.py summary — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        fh.write(f"Output: {args.output}\n\n")
+        fh.write(table + "\n")
+    log.info(f"Summary written to {summary_log_path}")
+
     log.info(f"Done — {n_skipped} skipped → {args.output}\n{table}")
 
 
