@@ -25,6 +25,7 @@ Use generate_manifest.py to produce this file automatically.
     species_name           – species directory name
     assembly_name          – stem of *_genome.fasta (without _genome.fasta suffix)
     assembly_qc_dir        – AssemblyQC/ directory (BUSCO + QUAST);  leave empty if absent
+    equiv_seqid_file       – path to *.equiv_seqID.txt;              leave empty if absent
     repelem_annotation_name – RE annotation identifier, e.g. Arabidopsis_thaliana_EARLGREY
     rdna_log               – path to Barrnap+tRNAscan log file;      leave empty if absent
     earlgrey_dir           – EarlGrey output dir with *.highLevelCount.txt; leave empty if absent
@@ -216,7 +217,7 @@ def parse_earlgrey(earlgrey_dir: Path) -> dict:
 
 _COLUMN_ORDER = [
     # Identity
-    "species_name", "assembly_name", "gene_annotation_name", "repelem_annotation_name",
+    "species_name", "assembly_name", "equiv_seqid_file", "gene_annotation_name", "repelem_annotation_name",
     "Species", "NCBI_TaxID", "Assembly_Version",
     # Assembly QC
     "Assembly_BUSCO_viridiplantae_odb10", "Assembly_BUSCO_embryophyta_odb10",
@@ -391,6 +392,7 @@ def main():
             # Identity fields from manifest
             row["species_name"]            = str(mrow.get("species_name", ""))
             row["assembly_name"]           = str(mrow.get("assembly_name", ""))
+            row["equiv_seqid_file"]        = str(mrow.get("equiv_seqid_file", ""))
             row["gene_annotation_name"]    = label
             row["repelem_annotation_name"] = str(mrow.get("repelem_annotation_name", ""))
 

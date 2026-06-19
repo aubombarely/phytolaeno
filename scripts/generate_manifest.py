@@ -9,18 +9,25 @@ Expected directory structure under BySpecies/:
 
     {species_name}/
     ├── 00_GenomeSource/
-    │   └── {assembly_id}/
+    │   └── {assembly_id}/                                    ← one or more assembly dirs
     │       ├── {species_name}_{accession}_{id}_genome.fasta  ← assembly_name source
+    │       ├── {species_name}_{accession}_{id}_genome.equiv_seqID.txt  ← optional
     │       └── AssemblyQC/                                   ← QUAST + BUSCO
     ├── 03_AbInitioPredictions/
     │   └── {annotation_id}/         ← one row per annotation
+    │       ├── {assembly_name}*.gff3 ← links annotation to its assembly
     │       └── AnnotationQC_{ts}/   ← GAQET output
     └── 10_RepetitiveLandscape/
         ├── 02_EarlGrey/             ← repeat composition
         └── 10_rDNAtDNA/             ← rDNA/tRNA log
 
-One manifest row is produced per annotation directory found under
-03_AbInitioPredictions/. Naming conventions:
+One manifest row is produced per (assembly × annotation) pair. When only one
+assembly directory is present all annotations are assigned to it. When multiple
+assembly directories exist each annotation is linked to its assembly by searching
+for a GFF3 file named {assembly_name}*.gff3 inside the annotation directory;
+unlinked annotations are skipped with a warning.
+
+Naming conventions:
   - assembly_name  : stem of *_genome.fasta (without the _genome.fasta suffix)
   - gene_annotation_name  : {species_name}_{TOOL} (e.g. Arabidopsis_thaliana_HELIXER)
   - repelem_annotation_name: {species_name}_{RE_TOOL} (e.g. Arabidopsis_thaliana_EARLGREY)
@@ -64,6 +71,7 @@ MANIFEST_COLUMNS = [
     "species_name",
     "assembly_name",
     "assembly_qc_dir",
+    "equiv_seqid_file",
     "repelem_annotation_name",
     "rdna_log",
     "earlgrey_dir",
@@ -101,57 +109,72 @@ def _pick_one(candidates: list[Path], label: str, context: str) -> str:
 
 # ── Discovery helpers ─────────────────────────────────────────────────────────
 
-def find_assembly_info(species_dir: Path, ignore: set[str]) -> tuple[str, str]:
-    """Return (assembly_name, assembly_qc_dir).
+def find_assembly_info(species_dir: Path, ignore: set[str]) -> list[tuple[str, str, str]]:
+    """Return a list of (assembly_name, assembly_qc_dir, equiv_seqid_file) tuples,
+    one per assembly directory found under 00_GenomeSource/.
 
     assembly_name is the stem of *_genome.fasta (without _genome.fasta suffix).
-    Returns ("", "") when ambiguous or required files are missing.
+    Fields are blank when the corresponding file/directory is missing or ambiguous.
     """
     genome_source = species_dir / "00_GenomeSource"
     if not genome_source.is_dir():
         log.warning(f"{species_dir.name}: 00_GenomeSource not found")
-        return "", ""
+        return []
 
     assembly_dirs = [d for d in sorted(genome_source.iterdir()) if d.is_dir() and d.name not in ignore]
     if not assembly_dirs:
         log.warning(f"{species_dir.name}: no assembly directories in 00_GenomeSource")
-        return "", ""
+        return []
 
     if len(assembly_dirs) > 1:
-        log.warning(
+        log.info(
             f"{species_dir.name}: found {len(assembly_dirs)} assembly directories in "
-            f"00_GenomeSource, expected 1 — leaving assembly_name and assembly_qc_dir blank. "
-            f"Directories:\n" + "\n".join(f"  {d}" for d in assembly_dirs)
+            f"00_GenomeSource — processing all:\n"
+            + "\n".join(f"  {d}" for d in assembly_dirs)
         )
-        return "", ""
 
-    assembly_dir = assembly_dirs[0]
+    results = []
+    for assembly_dir in assembly_dirs:
+        # Derive assembly_name from the renamed *_genome.fasta file
+        genome_fastas = list(assembly_dir.glob("*_genome.fasta"))
+        if not genome_fastas:
+            log.warning(f"{species_dir.name}/{assembly_dir.name}: no *_genome.fasta found")
+            assembly_name = ""
+        elif len(genome_fastas) > 1:
+            log.warning(
+                f"{species_dir.name}/{assembly_dir.name}: found {len(genome_fastas)} *_genome.fasta "
+                f"files, expected 1 — leaving assembly_name blank. Files:\n"
+                + "\n".join(f"  {f}" for f in genome_fastas)
+            )
+            assembly_name = ""
+        else:
+            fname = genome_fastas[0].name
+            assembly_name = fname[: -len("_genome.fasta")] if fname.endswith("_genome.fasta") else genome_fastas[0].stem
 
-    # Derive assembly_name from the renamed *_genome.fasta file
-    genome_fastas = list(assembly_dir.glob("*_genome.fasta"))
-    if not genome_fastas:
-        log.warning(f"{species_dir.name}: no *_genome.fasta found in {assembly_dir}")
-        assembly_name = ""
-    elif len(genome_fastas) > 1:
-        log.warning(
-            f"{species_dir.name}: found {len(genome_fastas)} *_genome.fasta files in "
-            f"{assembly_dir}, expected 1 — leaving assembly_name blank. Files:\n"
-            + "\n".join(f"  {f}" for f in genome_fastas)
-        )
-        assembly_name = ""
-    else:
-        fname = genome_fastas[0].name
-        assembly_name = fname[: -len("_genome.fasta")] if fname.endswith("_genome.fasta") else genome_fastas[0].stem
+        # AssemblyQC directory
+        assembly_qc = assembly_dir / "AssemblyQC"
+        assembly_qc_dir = str(assembly_qc) if assembly_qc.is_dir() else ""
+        if not assembly_qc_dir:
+            log.warning(f"{species_dir.name}/{assembly_dir.name}: AssemblyQC not found")
 
-    # AssemblyQC directory
-    assembly_qc = assembly_dir / "AssemblyQC"
-    if assembly_qc.is_dir():
-        assembly_qc_dir = str(assembly_qc)
-    else:
-        log.warning(f"{species_dir.name}: AssemblyQC not found in {assembly_dir}")
-        assembly_qc_dir = ""
+        # equiv_seqID file
+        equiv_candidates = list(assembly_dir.glob("*.equiv_seqID.txt"))
+        if not equiv_candidates:
+            equiv_seqid_file = ""
+        elif len(equiv_candidates) > 1:
+            log.warning(
+                f"{species_dir.name}/{assembly_dir.name}: found {len(equiv_candidates)} "
+                f"*.equiv_seqID.txt files, expected 1 — leaving blank. Files:\n"
+                + "\n".join(f"  {f}" for f in equiv_candidates)
+            )
+            equiv_seqid_file = ""
+        else:
+            equiv_seqid_file = str(equiv_candidates[0])
+            log.info(f"{species_dir.name}/{assembly_dir.name}: equiv_seqID file found: {equiv_candidates[0].name}")
 
-    return assembly_name, assembly_qc_dir
+        results.append((assembly_name, assembly_qc_dir, equiv_seqid_file))
+
+    return results
 
 
 def find_repelem_tool_name(species_dir: Path, priority: list[str], ignore: set[str]) -> str:
@@ -229,6 +252,11 @@ def has_annotationqc(annotation_dir: Path) -> bool:
     return any(annotation_dir.glob("AnnotationQC_*"))
 
 
+def annotation_links_assembly(ann_dir: Path, assembly_name: str) -> bool:
+    """Return True if ann_dir contains a GFF3 file whose name starts with assembly_name."""
+    return bool(assembly_name) and any(ann_dir.glob(f"{assembly_name}*.gff3"))
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -286,10 +314,10 @@ def main():
         n_species += 1
         species_name = species_dir.name
 
-        assembly_name, assembly_qc_dir = find_assembly_info(species_dir, ignore_dirs)
-        re_tool       = find_repelem_tool_name(species_dir, re_priority, ignore_dirs)
-        earlgrey      = find_earlgrey(species_dir)
-        rdna_log      = find_rdna_log(species_dir)
+        assemblies = find_assembly_info(species_dir, ignore_dirs)
+        re_tool    = find_repelem_tool_name(species_dir, re_priority, ignore_dirs)
+        earlgrey   = find_earlgrey(species_dir)
+        rdna_log   = find_rdna_log(species_dir)
 
         for ann_dir in find_annotation_dirs(species_dir, ignore_dirs):
             if not has_annotationqc(ann_dir):
@@ -299,20 +327,46 @@ def main():
                 n_skipped += 1
                 continue
 
-            gene_annotation_name   = f"{species_name}_{_tool_name(ann_dir.name)}"
+            # Link annotation to assembly
+            if len(assemblies) == 1:
+                assembly_name, assembly_qc_dir, equiv_seqid_file = assemblies[0]
+            elif len(assemblies) == 0:
+                log.warning(f"{species_name}/{ann_dir.name}: no assemblies found — skipping")
+                n_skipped += 1
+                continue
+            else:
+                matched = [a for a in assemblies if annotation_links_assembly(ann_dir, a[0])]
+                if not matched:
+                    log.warning(
+                        f"{species_name}/{ann_dir.name}: no assembly linked via GFF3 filename — skipping"
+                    )
+                    n_skipped += 1
+                    continue
+                if len(matched) > 1:
+                    log.warning(
+                        f"{species_name}/{ann_dir.name}: GFF3 matches {len(matched)} assemblies — "
+                        f"skipping. Matched assemblies:\n"
+                        + "\n".join(f"  {n}" for n, _, _ in matched)
+                    )
+                    n_skipped += 1
+                    continue
+                assembly_name, assembly_qc_dir, equiv_seqid_file = matched[0]
+
+            gene_annotation_name    = f"{species_name}_{_tool_name(ann_dir.name)}"
             repelem_annotation_name = f"{species_name}_{re_tool}" if re_tool else ""
 
             rows.append({
                 "species_name":            species_name,
                 "assembly_name":           assembly_name,
                 "assembly_qc_dir":         assembly_qc_dir,
+                "equiv_seqid_file":        equiv_seqid_file,
                 "repelem_annotation_name": repelem_annotation_name,
                 "rdna_log":                rdna_log,
                 "earlgrey_dir":            earlgrey,
                 "gene_annotation_name":    gene_annotation_name,
                 "gaqet_dir":               str(ann_dir),
             })
-            log.info(f"Added: {gene_annotation_name}")
+            log.info(f"Added: {gene_annotation_name} (assembly: {assembly_name})")
             n_annotations += 1
 
     if not rows:
