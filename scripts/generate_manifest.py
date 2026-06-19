@@ -35,6 +35,14 @@ Usage:
     # Limit to specific species:
     python generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \\
         --species Arabidopsis_thaliana Nicotiana_benthamiana
+
+    # Custom RE tool priority (default: 02_EarlGrey):
+    python generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \\
+        --re_landscape_priority 01_RepeatModelerMasker,02_EarlGrey
+
+    # Ignore specific directories during discovery:
+    python generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \\
+        --ignore_dir 99_Comparison 98_Scratch
 """
 
 import argparse
@@ -93,7 +101,7 @@ def _pick_one(candidates: list[Path], label: str, context: str) -> str:
 
 # ── Discovery helpers ─────────────────────────────────────────────────────────
 
-def find_assembly_info(species_dir: Path) -> tuple[str, str]:
+def find_assembly_info(species_dir: Path, ignore: set[str]) -> tuple[str, str]:
     """Return (assembly_name, assembly_qc_dir).
 
     assembly_name is the stem of *_genome.fasta (without _genome.fasta suffix).
@@ -104,7 +112,7 @@ def find_assembly_info(species_dir: Path) -> tuple[str, str]:
         log.warning(f"{species_dir.name}: 00_GenomeSource not found")
         return "", ""
 
-    assembly_dirs = [d for d in sorted(genome_source.iterdir()) if d.is_dir()]
+    assembly_dirs = [d for d in sorted(genome_source.iterdir()) if d.is_dir() and d.name not in ignore]
     if not assembly_dirs:
         log.warning(f"{species_dir.name}: no assembly directories in 00_GenomeSource")
         return "", ""
@@ -146,8 +154,12 @@ def find_assembly_info(species_dir: Path) -> tuple[str, str]:
     return assembly_name, assembly_qc_dir
 
 
-def find_repelem_tool_name(species_dir: Path) -> str:
+def find_repelem_tool_name(species_dir: Path, priority: list[str], ignore: set[str]) -> str:
     """Return the RE tool name from 10_RepetitiveLandscape/ (excludes 10_rDNAtDNA).
+
+    When multiple tool directories exist, the first match in *priority* (a list
+    of directory names, e.g. ["02_EarlGrey"]) is used.  Falls back to the
+    alphabetically first directory if none match, with a warning.
 
     E.g. 02_EarlGrey → EARLGREY.
     """
@@ -156,16 +168,27 @@ def find_repelem_tool_name(species_dir: Path) -> str:
         return ""
     tool_dirs = [
         d for d in sorted(re_root.iterdir())
-        if d.is_dir() and d.name != "10_rDNAtDNA"
+        if d.is_dir() and d.name != "10_rDNAtDNA" and d.name not in ignore
     ]
     if not tool_dirs:
         return ""
-    if len(tool_dirs) > 1:
-        log.warning(
-            f"{species_dir.name}: found {len(tool_dirs)} RE tool directories in "
-            f"10_RepetitiveLandscape — using first: {tool_dirs[0].name}. Others:\n"
-            + "\n".join(f"  {d}" for d in tool_dirs[1:])
-        )
+    if len(tool_dirs) == 1:
+        return _tool_name(tool_dirs[0].name)
+
+    tool_dir_names = {d.name: d for d in tool_dirs}
+    for preferred in priority:
+        if preferred in tool_dir_names:
+            log.info(
+                f"{species_dir.name}: found {len(tool_dirs)} RE tool directories — "
+                f"using priority match: {preferred}"
+            )
+            return _tool_name(preferred)
+
+    log.warning(
+        f"{species_dir.name}: found {len(tool_dirs)} RE tool directories and none "
+        f"matched the priority list {priority} — using first: {tool_dirs[0].name}. "
+        f"All directories:\n" + "\n".join(f"  {d}" for d in tool_dirs)
+    )
     return _tool_name(tool_dirs[0].name)
 
 
@@ -189,13 +212,13 @@ def find_rdna_log(species_dir: Path) -> str:
     return _pick_one(candidates, "rDNA log", species_dir.name)
 
 
-def find_annotation_dirs(species_dir: Path) -> list[Path]:
+def find_annotation_dirs(species_dir: Path, ignore: set[str]) -> list[Path]:
     """Return all annotation directories under 03_AbInitioPredictions/."""
     predictions_dir = species_dir / "03_AbInitioPredictions"
     if not predictions_dir.is_dir():
         log.warning(f"{species_dir.name}: 03_AbInitioPredictions not found")
         return []
-    annotation_dirs = [d for d in sorted(predictions_dir.iterdir()) if d.is_dir()]
+    annotation_dirs = [d for d in sorted(predictions_dir.iterdir()) if d.is_dir() and d.name not in ignore]
     if not annotation_dirs:
         log.warning(f"{species_dir.name}: no annotation directories in 03_AbInitioPredictions")
     return annotation_dirs
@@ -218,7 +241,18 @@ def main():
                         help="Output manifest TSV path")
     parser.add_argument("--species", nargs="+", metavar="SPECIES",
                         help="Limit to these species directory names (optional)")
+    parser.add_argument("--re_landscape_priority", metavar="DIR1,DIR2,...",
+                        default="02_EarlGrey",
+                        help="Comma-separated priority list of 10_RepetitiveLandscape "
+                             "subdirectory names; the first match is used when multiple "
+                             "RE tool directories are present (default: 02_EarlGrey)")
+    parser.add_argument("--ignore_dir", nargs="+", metavar="DIR",
+                        default=[],
+                        help="Directory names to skip during discovery (applied to "
+                             "assembly, RE tool, and annotation directories)")
     args = parser.parse_args()
+    re_priority  = [d.strip() for d in args.re_landscape_priority.split(",") if d.strip()]
+    ignore_dirs  = set(args.ignore_dir)
 
     # Timestamped warning log file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -252,12 +286,12 @@ def main():
         n_species += 1
         species_name = species_dir.name
 
-        assembly_name, assembly_qc_dir = find_assembly_info(species_dir)
-        re_tool       = find_repelem_tool_name(species_dir)
+        assembly_name, assembly_qc_dir = find_assembly_info(species_dir, ignore_dirs)
+        re_tool       = find_repelem_tool_name(species_dir, re_priority, ignore_dirs)
         earlgrey      = find_earlgrey(species_dir)
         rdna_log      = find_rdna_log(species_dir)
 
-        for ann_dir in find_annotation_dirs(species_dir):
+        for ann_dir in find_annotation_dirs(species_dir, ignore_dirs):
             if not has_annotationqc(ann_dir):
                 log.warning(
                     f"{species_name}/{ann_dir.name}: no AnnotationQC_* directory — skipping"
