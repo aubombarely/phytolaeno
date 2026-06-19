@@ -55,6 +55,7 @@ Usage:
 import argparse
 import logging
 import sys
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
@@ -257,6 +258,56 @@ def annotation_links_assembly(ann_dir: Path, assembly_name: str) -> bool:
     return bool(assembly_name) and any(ann_dir.glob(f"{assembly_name}*.gff3"))
 
 
+# ── Summary table ─────────────────────────────────────────────────────────────
+
+def _summary_table(
+    n_species: int,
+    n_assemblies: int,
+    n_re_annots: int,
+    re_tool_counts: Counter,
+    n_annotations: int,
+    gm_tool_counts: Counter,
+) -> str:
+    """Return a formatted ASCII summary table as a single string."""
+    totals = [
+        ("Species",                n_species),
+        ("Assemblies",             n_assemblies),
+        ("RE annotations",         n_re_annots),
+        ("Gene model annotations", n_annotations),
+    ]
+    re_rows = sorted(re_tool_counts.items())
+    gm_rows = sorted(gm_tool_counts.items())
+
+    all_labels  = (
+        [r[0] for r in totals]
+        + ["RE tool breakdown", "Gene model tool breakdown"]
+        + [r[0] for r in re_rows]
+        + [r[0] for r in gm_rows]
+    )
+    all_counts  = [r[1] for r in totals] + [r[1] for r in re_rows] + [r[1] for r in gm_rows]
+    w_label     = max(len(l) for l in all_labels)
+    w_count     = max((len(str(c)) for c in all_counts), default=1)
+    w_count     = max(w_count, len("Count"))
+
+    sep     = f"+{'-' * (w_label + 2)}+{'-' * (w_count + 2)}+"
+    def row(label: str, count = "") -> str:
+        return f"| {label:<{w_label}} | {str(count):>{w_count}} |"
+    def section(title: str) -> str:
+        return f"| {title:<{w_label}} | {'':>{w_count}} |"
+
+    lines = [sep, row("Metric", "Count"), sep]
+    for label, count in totals:
+        lines.append(row(label, count))
+    lines += [sep, section("RE tool breakdown"), sep]
+    for t, c in re_rows:
+        lines.append(row(t, c))
+    lines += [sep, section("Gene model tool breakdown"), sep]
+    for t, c in gm_rows:
+        lines.append(row(t, c))
+    lines.append(sep)
+    return "\n".join(lines)
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -309,6 +360,9 @@ def main():
 
     rows = []
     n_species = n_annotations = n_skipped = 0
+    tool_counts: Counter    = Counter()
+    re_tool_counts: Counter = Counter()
+    seen_re_annots: set     = set()
 
     for species_dir in species_dirs:
         n_species += 1
@@ -367,6 +421,10 @@ def main():
                 "gaqet_dir":               str(ann_dir),
             })
             log.info(f"Added: {gene_annotation_name} (assembly: {assembly_name})")
+            tool_counts[_tool_name(ann_dir.name)] += 1
+            if repelem_annotation_name and repelem_annotation_name not in seen_re_annots:
+                re_tool_counts[re_tool] += 1
+                seen_re_annots.add(repelem_annotation_name)
             n_annotations += 1
 
     if not rows:
@@ -383,10 +441,11 @@ def main():
     else:
         log.info(f"Warnings written to {warn_log_path}")
 
-    log.info(
-        f"Done: {n_species} species, {n_annotations} annotations added, "
-        f"{n_skipped} skipped → {args.output}"
-    )
+    n_assemblies = len({r["assembly_name"] for r in rows if r["assembly_name"]})
+    n_re_annots  = sum(re_tool_counts.values())
+    table        = _summary_table(n_species, n_assemblies, n_re_annots,
+                                  re_tool_counts, n_annotations, tool_counts)
+    log.info(f"Done — {n_skipped} skipped → {args.output}\n{table}")
 
 
 if __name__ == "__main__":
