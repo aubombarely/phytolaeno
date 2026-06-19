@@ -253,9 +253,26 @@ def has_annotationqc(annotation_dir: Path) -> bool:
     return any(annotation_dir.glob("AnnotationQC_*"))
 
 
+def find_annotation_subdirs(ann_dir: Path, ignore: set[str]) -> list[Path]:
+    """Return subdirectories of ann_dir that contain AnnotationQC_* (container case)."""
+    return [
+        d for d in sorted(ann_dir.iterdir())
+        if d.is_dir() and d.name not in ignore and has_annotationqc(d)
+    ]
+
+
 def annotation_links_assembly(ann_dir: Path, assembly_name: str) -> bool:
     """Return True if ann_dir contains a GFF3 file whose name starts with assembly_name."""
     return bool(assembly_name) and any(ann_dir.glob(f"{assembly_name}*.gff3"))
+
+
+def container_links_assembly(container_dir: Path, assembly_name: str) -> bool:
+    """Return True if container_dir contains a FASTA file whose name starts with assembly_name.
+
+    Used for container annotation dirs (e.g. 01_BRAKER3) where the softmasked assembly
+    FASTA is placed directly in the container rather than a per-annotation GFF3.
+    """
+    return bool(assembly_name) and any(container_dir.glob(f"{assembly_name}*.fasta"))
 
 
 # ── Summary table ─────────────────────────────────────────────────────────────
@@ -284,8 +301,8 @@ def _summary_table(
         ("Missing AssemblyQC (QUAST + BUSCO)",  n_missing_assembly_qc),
         ("Skipped: no AnnotationQC_* (GAQET)",  n_skip_gaqet),
         ("Skipped: no assemblies found",         n_skip_no_assembly),
-        ("Skipped: no GFF3 assembly link",       n_skip_no_link),
-        ("Skipped: ambiguous GFF3 assembly link",n_skip_ambiguous),
+        ("Skipped: no assembly link",             n_skip_no_link),
+        ("Skipped: ambiguous assembly link",     n_skip_ambiguous),
     ]
     re_rows = sorted(re_tool_counts.items())
     gm_rows = sorted(gm_tool_counts.items())
@@ -396,58 +413,78 @@ def main():
         rdna_log   = find_rdna_log(species_dir)
 
         for ann_dir in find_annotation_dirs(species_dir, ignore_dirs):
-            if not has_annotationqc(ann_dir):
-                log.warning(
-                    f"{species_name}/{ann_dir.name}: no AnnotationQC_* directory — skipping"
+            # Resolve to annotation entries: direct dir or container subdirs
+            if has_annotationqc(ann_dir):
+                entries = [(ann_dir, _tool_name(ann_dir.name))]
+                is_container = False
+            else:
+                sub_dirs = find_annotation_subdirs(ann_dir, ignore_dirs)
+                if not sub_dirs:
+                    log.warning(
+                        f"{species_name}/{ann_dir.name}: no AnnotationQC_* directory — skipping"
+                    )
+                    n_skip_gaqet += 1
+                    continue
+                entries = [(sub, _tool_name(sub.name)) for sub in sub_dirs]
+                is_container = True
+                log.info(
+                    f"{species_name}/{ann_dir.name}: container with {len(entries)} annotation(s): "
+                    + ", ".join(t for _, t in entries)
                 )
-                n_skip_gaqet += 1
-                continue
 
-            # Link annotation to assembly
+            # Resolve assembly link once for the whole ann_dir
             if len(assemblies) == 1:
                 assembly_name, assembly_qc_dir, equiv_seqid_file = assemblies[0]
             elif len(assemblies) == 0:
                 log.warning(f"{species_name}/{ann_dir.name}: no assemblies found — skipping")
-                n_skip_no_assembly += 1
+                n_skip_no_assembly += len(entries)
                 continue
             else:
-                matched = [a for a in assemblies if annotation_links_assembly(ann_dir, a[0])]
+                if is_container:
+                    matched     = [a for a in assemblies if container_links_assembly(ann_dir, a[0])]
+                    link_method = "FASTA filename"
+                else:
+                    matched     = [a for a in assemblies if annotation_links_assembly(ann_dir, a[0])]
+                    link_method = "GFF3 filename"
+
                 if not matched:
                     log.warning(
-                        f"{species_name}/{ann_dir.name}: no assembly linked via GFF3 filename — skipping"
+                        f"{species_name}/{ann_dir.name}: no assembly linked via {link_method} — skipping"
                     )
-                    n_skip_no_link += 1
+                    n_skip_no_link += len(entries)
                     continue
                 if len(matched) > 1:
                     log.warning(
-                        f"{species_name}/{ann_dir.name}: GFF3 matches {len(matched)} assemblies — "
-                        f"skipping. Matched assemblies:\n"
+                        f"{species_name}/{ann_dir.name}: {link_method} matches {len(matched)} "
+                        f"assemblies — skipping. Matched assemblies:\n"
                         + "\n".join(f"  {n}" for n, _, _ in matched)
                     )
-                    n_skip_ambiguous += 1
+                    n_skip_ambiguous += len(entries)
                     continue
                 assembly_name, assembly_qc_dir, equiv_seqid_file = matched[0]
 
-            gene_annotation_name    = f"{species_name}_{_tool_name(ann_dir.name)}"
-            repelem_annotation_name = f"{species_name}_{re_tool}" if re_tool else ""
+            # Produce one manifest row per annotation entry
+            for gaqet_dir, tool_name in entries:
+                gene_annotation_name    = f"{species_name}_{tool_name}"
+                repelem_annotation_name = f"{species_name}_{re_tool}" if re_tool else ""
 
-            rows.append({
-                "species_name":            species_name,
-                "assembly_name":           assembly_name,
-                "assembly_qc_dir":         assembly_qc_dir,
-                "equiv_seqid_file":        equiv_seqid_file,
-                "repelem_annotation_name": repelem_annotation_name,
-                "rdna_log":                rdna_log,
-                "earlgrey_dir":            earlgrey,
-                "gene_annotation_name":    gene_annotation_name,
-                "gaqet_dir":               str(ann_dir),
-            })
-            log.info(f"Added: {gene_annotation_name} (assembly: {assembly_name})")
-            tool_counts[_tool_name(ann_dir.name)] += 1
-            if repelem_annotation_name and repelem_annotation_name not in seen_re_annots:
-                re_tool_counts[re_tool] += 1
-                seen_re_annots.add(repelem_annotation_name)
-            n_annotations += 1
+                rows.append({
+                    "species_name":            species_name,
+                    "assembly_name":           assembly_name,
+                    "assembly_qc_dir":         assembly_qc_dir,
+                    "equiv_seqid_file":        equiv_seqid_file,
+                    "repelem_annotation_name": repelem_annotation_name,
+                    "rdna_log":                rdna_log,
+                    "earlgrey_dir":            earlgrey,
+                    "gene_annotation_name":    gene_annotation_name,
+                    "gaqet_dir":               str(gaqet_dir),
+                })
+                log.info(f"Added: {gene_annotation_name} (assembly: {assembly_name})")
+                tool_counts[tool_name] += 1
+                if repelem_annotation_name and repelem_annotation_name not in seen_re_annots:
+                    re_tool_counts[re_tool] += 1
+                    seen_re_annots.add(repelem_annotation_name)
+                n_annotations += 1
 
     if not rows:
         log.error("No annotation directories found — manifest not written")
