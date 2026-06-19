@@ -152,6 +152,14 @@ python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.
 # Specific species only
 python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
     --species Arabidopsis_thaliana Nicotiana_benthamiana
+
+# Custom RE tool priority when multiple RE dirs are present (default: 02_EarlGrey)
+python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
+    --re_landscape_priority 01_RepeatModelerMasker,02_EarlGrey
+
+# Ignore specific directories during discovery (assembly, RE tool, and annotation dirs)
+python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
+    --ignore_dir 99_Comparison 98_Scratch
 ```
 
 The script expects the following structure under `BySpecies/`:
@@ -159,26 +167,35 @@ The script expects the following structure under `BySpecies/`:
 ```
 {species_name}/
 ├── 00_GenomeSource/
-│   └── {assembly_id}/
-│       └── AssemblyQC/          ← QUAST + BUSCO
+│   └── {assembly_id}/                                    ← one or more assembly dirs
+│       ├── {assembly_name}_genome.fasta                  ← assembly_name source
+│       ├── {assembly_name}_genome.equiv_seqID.txt        ← optional sequence ID mapping
+│       └── AssemblyQC/                                   ← QUAST + BUSCO
 ├── 03_AbInitioPredictions/
-│   └── {annotation_id}/         ← one manifest row per directory here
-│       └── AnnotationQC_{ts}/   ← GAQET output
+│   └── {annotation_id}/                                  ← one manifest row per directory
+│       ├── {assembly_name}*.gff3                         ← links annotation to its assembly
+│       └── AnnotationQC_{ts}/                            ← GAQET output
 └── 10_RepetitiveLandscape/
-    ├── 02_EarlGrey/              ← repeat composition
-    └── 10_rDNAtDNA/              ← rDNA/tRNA log
+    ├── 02_EarlGrey/                                      ← repeat composition
+    └── 10_rDNAtDNA/                                      ← rDNA/tRNA log
 ```
 
-One manifest row is produced per annotation directory found under `03_AbInitioPredictions/`. The naming conventions are:
+One manifest row is produced per `(assembly × annotation)` pair. The naming conventions are:
 
 | Column | Derived from |
 |--------|-------------|
 | `species_name` | Species directory name |
 | `assembly_name` | Stem of `*_genome.fasta` (without `_genome.fasta`) |
+| `assembly_qc_dir` | `AssemblyQC/` directory inside the assembly dir |
+| `equiv_seqid_file` | Path to `*.equiv_seqID.txt` inside the assembly dir (blank if absent) |
 | `gene_annotation_name` | `{species_name}_{TOOL}` — e.g. `Arabidopsis_thaliana_HELIXER` |
 | `repelem_annotation_name` | `{species_name}_{RE_TOOL}` — e.g. `Arabidopsis_thaliana_EARLGREY` |
 
-If more than one candidate is found for a single-value field (`assembly_qc_dir`, `earlgrey_dir`, `rdna_log`) the field is left blank and a warning lists all candidates for manual review. Annotation directories without an `AnnotationQC_*` subdirectory are skipped with a warning.
+**Multiple assemblies:** when more than one assembly directory is present under `00_GenomeSource/`, each annotation directory is linked to its assembly by searching for a GFF3 file named `{assembly_name}*.gff3` inside it. Annotations that cannot be linked to any assembly are skipped with a warning. When only one assembly is present all annotations are assigned to it (backwards-compatible behaviour).
+
+**RE tool priority:** when multiple tool directories exist under `10_RepetitiveLandscape/`, the first match in the priority list is used (default: `02_EarlGrey`). Override with `--re_landscape_priority`. If no priority match is found, the first directory alphabetically is used with a warning.
+
+If more than one candidate is found for a single-value field (`assembly_qc_dir`, `earlgrey_dir`, `rdna_log`, `equiv_seqid_file`) the field is left blank and a warning lists all candidates for manual review. Annotation directories without an `AnnotationQC_*` subdirectory are skipped with a warning.
 
 All warnings are written to both the console and a timestamped file (`generate_manifest_warning_{timestamp}.log`). The log file is deleted automatically if no warnings were produced.
 
@@ -205,6 +222,7 @@ Use `generate_manifest.py` to produce this file automatically. Column order must
 | `species_name` | Yes | Species directory name |
 | `assembly_name` | No | Stem of `*_genome.fasta` (without `_genome.fasta` suffix) |
 | `assembly_qc_dir` | No | `AssemblyQC/` directory with BUSCO and QUAST subdirectories |
+| `equiv_seqid_file` | No | Path to `*.equiv_seqID.txt` sequence ID mapping file |
 | `repelem_annotation_name` | No | RE annotation identifier (e.g. `Arabidopsis_thaliana_EARLGREY`) |
 | `rdna_log` | No | Path to a Barrnap + tRNAscan-SE combined log file |
 | `earlgrey_dir` | No | EarlGrey output directory containing `*.highLevelCount.txt` |
@@ -222,7 +240,7 @@ Arabidopsis_thaliana     Arabidopsis_thaliana_TAIR10_genome   /data/Araport11/As
 
 | Source | Output columns |
 |--------|---------------|
-| Manifest identity columns | `species_name`, `assembly_name`, `gene_annotation_name`, `repelem_annotation_name` |
+| Manifest identity columns | `species_name`, `assembly_name`, `equiv_seqid_file`, `gene_annotation_name`, `repelem_annotation_name` |
 | GAQET `*_GAQET.stats.tsv` | All annotation QC columns pass through (Species, gene/transcript counts, BUSCO, PSAURON, OMArk, DETENGA, protein hits…); `Annotation_Version` is renamed to `Gene_Model_Annotation_Version` |
 | AssemblyQC BUSCO | `Assembly_BUSCO_viridiplantae_odb10`, `Assembly_BUSCO_embryophyta_odb10` |
 | QUAST `report.txt` | `Assembly_Total_Length_bp`, `Assembly_Contigs_N`, `Assembly_Largest_Contig_bp`, `Assembly_GC_pct`, `Assembly_N50_bp`, `Assembly_N90_bp`, `Assembly_auN_bp`, `Assembly_L50`, `Assembly_L90`, `Assembly_Ns_per_100kbp` |
