@@ -10,7 +10,7 @@ Old layout (BySpecies/{species}/):
         AssemblyQC/*.busco.viridi*/     -> 01_Genomes/{acc}/01_Assembly_QC/02_BUSCO_{v}_Run01_Viridiplantae_odb10/
         AssemblyQC/*.busco.embryo*/     -> 01_Genomes/{acc}/01_Assembly_QC/02_BUSCO_{v}_Run02_Embryophyta_odb10/
         FigshareAnnotation/             -> 01_Genomes/{acc}/03_Annotations/01_Gene_model_annotations/
-                                               00_FigshareAnnotation_{v}_Run01/
+                                               00_FigshareAnnotation_{doi}_Run01/
     03_AbInitioPredictions/
         00_HELIXER/                     -> 03_Annotations/01_Gene_model_annotations/01_HELIXER_{v}_Run01/
         05_ANNEVO/                      -> 03_Annotations/01_Gene_model_annotations/02_ANNEVO_{v}_Run01/
@@ -20,6 +20,14 @@ Old layout (BySpecies/{species}/):
         10_rDNAtDNA/                    -> 03_Annotations/00_Repetitive_landscape_annotations/
                                                01_Barrnap_{v}_Run01/   (moved, tRNAscan files removed)
                                                02_tRNAScanSE_{v}_Run01/ (copied, barrnap files removed)
+
+Pre-move cleanup and post-move reporting performed automatically:
+    - AnnotationQCRun* dirs (old GAQET naming) are deleted
+    - AnnotationQC_* dirs (new GAQET naming): tool subdirs compressed via gaqet_tgzip.py
+    - EarlGrey tool subdirs ({species}_Database, etc.) compressed via earlgrey_tgzip.py
+    - AGAT log files (mrna.agat.log, reformatted_annotation.agat.log) are deleted
+    - get_barrnap_summary.py run on the GFF3 in 01_Barrnap_*/
+    - get_trnascan_summary.py run on the GFF3 in 02_tRNAScanSE_*/
 
 Source directory naming rules
 ------------------------------
@@ -32,6 +40,12 @@ File classification inside each source directory
     Files whose name starts with the species name -> 02_WorkingFiles/
     All other files                               -> 00_SourceFiles/
 
+Configuration
+-------------
+    Tool versions and the Figshare DOI are read from directory_mapping.conf
+    (same directory as this script). Individual values can be overridden via
+    CLI arguments (see --help).
+
 Usage
 -----
     # Single accession species
@@ -43,31 +57,69 @@ Usage
                             --new_dir ./Acacia_confusa \\
                             --accession GCA_037074495.1
 
+    # Use a different config file
+    python migrate_to_v2.py --old_dir ../BySpecies/Acacia_confusa \\
+                            --new_dir ./Acacia_confusa \\
+                            --config /path/to/directory_mapping.conf
+
     # Preview without making changes
     python migrate_to_v2.py --old_dir ../BySpecies/Acacia_confusa \\
                             --new_dir ./Acacia_confusa --dry_run
 """
 
 import argparse
+import configparser
 import logging
 import shutil
+import subprocess
 import sys
 from pathlib import Path
+
+SCRIPTS_DIR = Path(__file__).parent
+DEFAULT_CONFIG = SCRIPTS_DIR / "directory_mapping.conf"
 
 logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
-# Default tool versions used in destination directory names
-TOOL_DEFAULTS = {
-    "quast_version":    "v5.2.0",
-    "busco_version":    "v5.6.1",
-    "helixer_version":  "v0.3.4",
-    "annevo_version":   "v2.2",
-    "barrnap_version":  "v0.9",
-    "trnascan_version": "v2.0.12",
-    "earlgrey_version": "v5.1.1",
-    "figshare_version": "v1",
-}
+TOOL_KEYS = [
+    "quast_version",
+    "busco_version",
+    "helixer_version",
+    "annevo_version",
+    "barrnap_version",
+    "trnascan_version",
+    "earlgrey_version",
+    "figshare_doi",
+]
+
+AGAT_LOG_FILES = [
+    "mrna.agat.log",
+    "reformatted_annotation.agat.log",
+]
+
+
+# ── Config loading ─────────────────────────────────────────────────────────────
+
+def load_config(config_path: Path) -> dict:
+    cfg = configparser.ConfigParser()
+    if not cfg.read(config_path):
+        log.error("Config file not found: %s", config_path)
+        sys.exit(1)
+    if "tool_versions" not in cfg:
+        log.error("[tool_versions] section missing in %s", config_path)
+        sys.exit(1)
+    return dict(cfg["tool_versions"])
+
+
+def apply_config(args, config: dict) -> None:
+    """Populate any tool key that was not overridden on the CLI from config."""
+    for key in TOOL_KEYS:
+        if getattr(args, key) is None:
+            val = config.get(key)
+            if val is None:
+                log.error("Missing key '%s' in [tool_versions] of %s", key, args.config)
+                sys.exit(1)
+            setattr(args, key, val)
 
 
 # ── Low-level file operations ──────────────────────────────────────────────────
@@ -113,6 +165,56 @@ def _purge_old_qc_runs(directory: Path, dry_run: bool) -> None:
         if d.is_dir() and d.name.startswith("AnnotationQCRun"):
             log.info("Removing old QC run dir: %s", d.name)
             _delete(d, dry_run)
+
+
+# ── Pre-move cleanup ───────────────────────────────────────────────────────────
+
+def _run_script(cmd: list, dry_run: bool) -> None:
+    if dry_run:
+        log.info("[DRY] %s", " ".join(str(c) for c in cmd))
+        return
+    subprocess.run([sys.executable] + [str(c) for c in cmd], check=True)
+
+
+def compress_gaqet_runs(parent_dir: Path, dry_run: bool) -> None:
+    """Find AnnotationQC_* dirs and compress their tool subdirectories via gaqet_tgzip.py."""
+    script = SCRIPTS_DIR / "gaqet_tgzip.py"
+    for gaqet_dir in sorted(parent_dir.glob("AnnotationQC_*")):
+        if not gaqet_dir.is_dir():
+            continue
+        log.info("Compressing GAQET run: %s", gaqet_dir.name)
+        _run_script([script, "--gaqet_dir", gaqet_dir], dry_run)
+
+
+def compress_earlgrey(earlgrey_dir: Path, species_name: str, dry_run: bool) -> None:
+    """Compress EarlGrey tool subdirectories via earlgrey_tgzip.py."""
+    script = SCRIPTS_DIR / "earlgrey_tgzip.py"
+    log.info("Compressing EarlGrey dirs in: %s", earlgrey_dir.name)
+    _run_script([script, "--earlgrey_dir", earlgrey_dir,
+                 "--species_name", species_name], dry_run)
+
+
+def remove_agat_logs(parent_dir: Path, dry_run: bool) -> None:
+    """Recursively remove AGAT log files from parent_dir."""
+    for log_name in AGAT_LOG_FILES:
+        for found in sorted(parent_dir.rglob(log_name)):
+            log.info("Removing AGAT log: %s", found)
+            _delete(found, dry_run)
+
+
+def run_rna_summary(script_name: str, rna_dir: Path, dry_run: bool) -> None:
+    """Find a GFF3 file in rna_dir and run the given summary script on it."""
+    script = SCRIPTS_DIR / script_name
+    if dry_run:
+        log.info("[DRY] %s %s/*.gff3", script.name, rna_dir)
+        return
+    gff3_files = sorted(rna_dir.glob("*.gff3")) + sorted(rna_dir.glob("*.gff"))
+    if not gff3_files:
+        log.warning("No GFF3 file found in %s — skipping summary", rna_dir.name)
+        return
+    if len(gff3_files) > 1:
+        log.warning("Multiple GFF3 files in %s, using: %s", rna_dir.name, gff3_files[0].name)
+    _run_script([script, gff3_files[0]], False)
 
 
 # ── Accession ID helpers ───────────────────────────────────────────────────────
@@ -182,7 +284,7 @@ def migrate_source_dir(source_dir: Path, new_genomes: Path, species_name: str, a
                 migrate_assembly_qc(item, aqc_dir, args)
             elif item.name == "FigshareAnnotation":
                 _purge_old_qc_runs(item, args.dry_run)
-                dst = gm_dir / f"00_FigshareAnnotation_{args.figshare_version}_Run01"
+                dst = gm_dir / f"00_FigshareAnnotation_{args.figshare_doi}_Run01"
                 _move(item, dst, args.dry_run)
             else:
                 log.warning("Unknown subdirectory in source dir, skipping: %s", item.name)
@@ -196,7 +298,7 @@ def migrate_source_dir(source_dir: Path, new_genomes: Path, species_name: str, a
 
 # ── Species-level migration ────────────────────────────────────────────────────
 
-def migrate_gene_models(old_dir: Path, gm_dir: Path, args) -> None:
+def migrate_gene_models(old_dir: Path, gm_dir: Path, species_name: str, args) -> None:
     """Migrate 03_AbInitioPredictions/ -> 01_Gene_model_annotations/."""
     predictions = old_dir / "03_AbInitioPredictions"
     if not predictions.is_dir():
@@ -214,24 +316,31 @@ def migrate_gene_models(old_dir: Path, gm_dir: Path, args) -> None:
         if not src.is_dir():
             log.debug("Not found, skipping: %s", old_name)
             continue
+
         _purge_old_qc_runs(src, args.dry_run)
+
         busco_dl = src / "busco_downloads"
         if busco_dl.is_dir():
             log.info("Removing busco_downloads in %s", old_name)
             _delete(busco_dl, args.dry_run)
+
+        compress_gaqet_runs(src, args.dry_run)
+        remove_agat_logs(src, args.dry_run)
+
         _move(src, gm_dir / new_name, args.dry_run)
 
 
-def migrate_repetitive_landscape(old_dir: Path, re_dir: Path, args) -> None:
+def migrate_repetitive_landscape(old_dir: Path, re_dir: Path, species_name: str, args) -> None:
     """Migrate 10_RepetitiveLandscape/ -> 00_Repetitive_landscape_annotations/."""
     landscape = old_dir / "10_RepetitiveLandscape"
     if not landscape.is_dir():
         log.warning("10_RepetitiveLandscape not found — skipping repetitive landscape")
         return
 
-    # EarlGrey
+    # EarlGrey: compress tool subdirs before moving
     earlgrey_src = landscape / "02_EarlGrey"
     if earlgrey_src.is_dir():
+        compress_earlgrey(earlgrey_src, species_name, args.dry_run)
         _move(earlgrey_src,
               re_dir / f"03_EarlGrey_{args.earlgrey_version}_Run01",
               args.dry_run)
@@ -256,6 +365,9 @@ def migrate_repetitive_landscape(old_dir: Path, re_dir: Path, args) -> None:
         _clean_glob(trnascan_dst, "*.fasta.gz", args.dry_run)
         _clean_glob(trnascan_dst, "*rDNA*",     args.dry_run)
 
+        run_rna_summary("get_barrnap_summary.py",  barrnap_dst,  args.dry_run)
+        run_rna_summary("get_trnascan_summary.py", trnascan_dst, args.dry_run)
+
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
@@ -270,18 +382,26 @@ def parse_args(argv=None):
     ap.add_argument("--accession", default=None,
                     help="Target accession for species-level data (gene models, repeats). "
                          "Required when multiple source directories are present.")
+    ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG,
+                    help=f"Config file with tool versions (default: {DEFAULT_CONFIG.name})")
     ap.add_argument("--dry_run", action="store_true",
                     help="Preview all operations without touching the filesystem")
 
-    vg = ap.add_argument_group("tool versions (used in destination directory names)")
-    for key, default in TOOL_DEFAULTS.items():
-        vg.add_argument(f"--{key}", default=default, metavar=default,
-                        help=f"Default: {default}")
+    vg = ap.add_argument_group(
+        "tool version overrides",
+        "Override individual values from --config. All default to None (use config).",
+    )
+    for key in TOOL_KEYS:
+        vg.add_argument(f"--{key}", default=None, metavar="VALUE",
+                        help=f"Override {key} from config")
     return ap.parse_args(argv)
 
 
 def main(argv=None):
     args = parse_args(argv)
+
+    config = load_config(args.config)
+    apply_config(args, config)
 
     for path, label in [(args.old_dir, "--old_dir"), (args.new_dir, "--new_dir")]:
         if not path.is_dir():
@@ -336,8 +456,8 @@ def main(argv=None):
         gm_dir.mkdir(parents=True, exist_ok=True)
         re_dir.mkdir(parents=True, exist_ok=True)
 
-    migrate_gene_models(args.old_dir, gm_dir, args)
-    migrate_repetitive_landscape(args.old_dir, re_dir, args)
+    migrate_gene_models(args.old_dir, gm_dir, species_name, args)
+    migrate_repetitive_landscape(args.old_dir, re_dir, species_name, args)
 
     log.info("Done.")
 
