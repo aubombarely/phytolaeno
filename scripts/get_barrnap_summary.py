@@ -165,6 +165,13 @@ def main(argv=None):
     for row in rows:
         print("\t".join(str(row[k]) for k in HEADER), file=sys.stderr)
 
+    # One-line compact summary
+    parts = []
+    for row in rows:
+        label = row["rDNA_type"].replace("_rRNA", "")
+        parts.append(f"{label} [C:{row['full_count']},P:{row['partial_count']}]")
+    print("rDNA " + "; ".join(parts), file=sys.stderr)
+
 
 if __name__ == "__main__":
     main()

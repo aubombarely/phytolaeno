@@ -145,6 +145,15 @@ def main(argv=None):
     for row in rows:
         print("\t".join(str(row[k]) for k in HEADER), file=sys.stderr)
 
+    # One-line compact summary
+    _SHORT = {"tRNA": "tRNA", "pseudogene": "pseudo", "exon": "exons"}
+    counts_by_type = {row["tDNA_type"]: row["count"] for row in rows}
+    parts = []
+    for feat, label in _SHORT.items():
+        if feat in counts_by_type:
+            parts.append(f"{label}: {counts_by_type[feat]}")
+    print("tDNA " + "; ".join(parts), file=sys.stderr)
+
 
 if __name__ == "__main__":
     main()
