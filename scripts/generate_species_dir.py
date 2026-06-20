@@ -18,6 +18,7 @@ All operations are idempotent.
 import argparse
 import json
 import logging
+import re
 import sys
 import time
 import urllib.error
@@ -165,27 +166,55 @@ def write_taxonomy_json(path: Path, info: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+
+def validate_species_name(name: str) -> bool:
+    """Validate species name; returns False (fatal) if spaces found."""
+    if " " in name:
+        log.error(
+            "Species name contains spaces — use underscores instead "
+            "(e.g. Nicotiana_tabacum): %r", name
+        )
+        return False
+    if not re.match(r'^[A-Za-z0-9_]+$', name):
+        log.warning(
+            "Species name contains characters other than letters, digits, "
+            "and underscores: %r", name
+        )
+    if len(name.split("_")) < 2:
+        log.warning(
+            "Species name has no underscore — expected at least "
+            "Genus_species format: %r", name
+        )
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Directory creation
 # ---------------------------------------------------------------------------
 
-def create_dirs(paths: list[Path]) -> None:
+def create_dirs(paths: list[Path], dry_run: bool = False) -> None:
     for p in paths:
-        if not p.exists():
+        if dry_run:
+            status = "Exists  " if p.exists() else "Would create"
+            log.info("[DRY RUN] %s  %s", status, p)
+        elif not p.exists():
             p.mkdir(parents=True)
             log.info("Created  %s", p)
         else:
             log.info("Exists   %s", p)
 
 
-def setup_species(root: Path, species: str) -> Path:
+def setup_species(root: Path, species: str, dry_run: bool = False) -> Path:
     species_dir = root / species
-    create_dirs([species_dir / d for d in SPECIES_DIRS])
+    create_dirs([species_dir / d for d in SPECIES_DIRS], dry_run=dry_run)
     return species_dir
 
 
-def setup_assembly(species_dir: Path, assembly: str) -> Path:
+def setup_assembly(species_dir: Path, assembly: str, dry_run: bool = False) -> Path:
     assembly_dir = species_dir / "01_Genomes" / assembly
-    create_dirs([assembly_dir / d for d in ASSEMBLY_DIRS])
+    create_dirs([assembly_dir / d for d in ASSEMBLY_DIRS], dry_run=dry_run)
     return assembly_dir
 
 
@@ -201,24 +230,37 @@ def parse_args(argv=None):
     p.add_argument("--species",  required=True,  help="Species name (e.g. Nicotiana_tabacum)")
     p.add_argument("--assembly", default=None,   help="Assembly name to add (optional)")
     p.add_argument("--no_taxonomy", action="store_true",
-                   help="Skip NCBI taxonomy fetch")
+                   help="Skip NCBI taxonomy fetch (useful on servers without internet access)")
+    p.add_argument("--dry_run", action="store_true",
+                   help="Preview what would be created without touching the filesystem")
     return p.parse_args(argv)
 
 
 def main(argv=None):
     args = parse_args(argv)
 
+    if not validate_species_name(args.species):
+        sys.exit(1)
+
     if not args.root.is_dir():
         log.error("Root directory does not exist: %s", args.root)
         sys.exit(1)
 
+    if args.dry_run:
+        log.info("[DRY RUN] No files or directories will be created.")
+
     # Species skeleton
-    species_dir = setup_species(args.root, args.species)
+    species_dir = setup_species(args.root, args.species, dry_run=args.dry_run)
 
     # Taxonomy
     taxonomy_dir = species_dir / "00_Taxonomy"
     if args.no_taxonomy:
         log.info("Skipping taxonomy fetch (--no_taxonomy)")
+    elif args.dry_run:
+        log.info(
+            "[DRY RUN] Would fetch taxonomy from NCBI for %r and write "
+            "taxonomy.txt / .tsv / .json to %s", args.species, taxonomy_dir
+        )
     else:
         log.info("Fetching taxonomy from NCBI for %r …", args.species)
         info = fetch_taxonomy(args.species)
@@ -232,8 +274,9 @@ def main(argv=None):
 
     # Assembly (optional)
     if args.assembly:
-        setup_assembly(species_dir, args.assembly)
-        log.info("Assembly directory ready: %s", species_dir / "01_Genomes" / args.assembly)
+        setup_assembly(species_dir, args.assembly, dry_run=args.dry_run)
+        if not args.dry_run:
+            log.info("Assembly directory ready: %s", species_dir / "01_Genomes" / args.assembly)
 
     log.info("Done.")
 
