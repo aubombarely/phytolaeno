@@ -94,6 +94,39 @@ def write_json(rows, path):
 WRITERS = {"tsv": write_tsv, "csv": write_csv, "json": write_json}
 
 
+# ── Stderr reporting ──────────────────────────────────────────────────────────
+
+def _print_stderr(rows, header, one_liner, script_name):
+    """Print program name, timestamp, ASCII table and one-liner to stderr."""
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Column widths: max of header label and all cell values
+    all_rows_str = [[str(row[k]) for k in header] for row in rows]
+    widths = [max(len(h), *(len(r[i]) for r in all_rows_str))
+              for i, h in enumerate(header)]
+
+    sep = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
+
+    def fmt_row(cells):
+        parts = []
+        for i, cell in enumerate(cells):
+            padded = cell.ljust(widths[i]) if i == 0 else cell.rjust(widths[i])
+            parts.append(f" {padded} ")
+        return "|" + "|".join(parts) + "|"
+
+    print(f"{script_name}  {timestamp}", file=sys.stderr)
+    print("", file=sys.stderr)
+    print(sep, file=sys.stderr)
+    print(fmt_row(list(header)), file=sys.stderr)
+    print(sep, file=sys.stderr)
+    for r in all_rows_str:
+        print(fmt_row(r), file=sys.stderr)
+    print(sep, file=sys.stderr)
+    print("", file=sys.stderr)
+    print(one_liner, file=sys.stderr)
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def default_output(input_path, fmt):
@@ -140,11 +173,6 @@ def main(argv=None):
         WRITERS[args.format](rows, out)
         print(f"Written: {out}")
 
-    # Print summary table to stderr for quick inspection
-    print("\t".join(HEADER), file=sys.stderr)
-    for row in rows:
-        print("\t".join(str(row[k]) for k in HEADER), file=sys.stderr)
-
     # One-line compact summary
     _SHORT = {"tRNA": "tRNA", "pseudogene": "pseudo", "exon": "exons"}
     counts_by_type = {row["tDNA_type"]: row["count"] for row in rows}
@@ -152,7 +180,9 @@ def main(argv=None):
     for feat, label in _SHORT.items():
         if feat in counts_by_type:
             parts.append(f"{label}: {counts_by_type[feat]}")
-    print("tDNA " + "; ".join(parts), file=sys.stderr)
+    one_liner = "tDNA " + "; ".join(parts)
+
+    _print_stderr(rows, HEADER, one_liner, args.input.name)
 
 
 if __name__ == "__main__":
