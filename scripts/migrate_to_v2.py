@@ -186,12 +186,29 @@ def compress_gaqet_runs(parent_dir: Path, dry_run: bool) -> None:
         _run_script([script, "--gaqet_dir", gaqet_dir], dry_run)
 
 
-def compress_earlgrey(earlgrey_dir: Path, species_name: str, dry_run: bool) -> None:
-    """Compress EarlGrey tool subdirectories via earlgrey_tgzip.py."""
+def compress_earlgrey(earlgrey_dir: Path, dry_run: bool) -> None:
+    """Compress EarlGrey tool subdirectories via earlgrey_tgzip.py.
+
+    Navigates into AnnotationRepeatsEarlGrey/<species>_EarlGrey/ and derives
+    the species name from that directory name.
+    """
     script = SCRIPTS_DIR / "earlgrey_tgzip.py"
-    log.info("Compressing EarlGrey dirs in: %s", earlgrey_dir.name)
-    _run_script([script, "--earlgrey_dir", earlgrey_dir,
-                 "--species_name", species_name], dry_run)
+    annotation_dir = earlgrey_dir / "AnnotationRepeatsEarlGrey"
+    if not annotation_dir.is_dir():
+        log.warning("AnnotationRepeatsEarlGrey not found in %s — skipping EarlGrey compression",
+                    earlgrey_dir.name)
+        return
+    eg_dirs = [d for d in annotation_dir.iterdir()
+               if d.is_dir() and d.name.endswith("_EarlGrey")]
+    if not eg_dirs:
+        log.warning("No *_EarlGrey directory found in %s — skipping", annotation_dir)
+        return
+    if len(eg_dirs) > 1:
+        log.warning("Multiple *_EarlGrey dirs in %s, using: %s", annotation_dir, eg_dirs[0].name)
+    eg_dir = eg_dirs[0]
+    eg_species = eg_dir.name.removesuffix("_EarlGrey")
+    log.info("Compressing EarlGrey dirs for: %s", eg_species)
+    _run_script([script, "--earlgrey_dir", eg_dir, "--species_name", eg_species], dry_run)
 
 
 def remove_agat_logs(parent_dir: Path, dry_run: bool) -> None:
@@ -284,6 +301,7 @@ def migrate_source_dir(source_dir: Path, new_genomes: Path, species_name: str, a
                 migrate_assembly_qc(item, aqc_dir, args)
             elif item.name == "FigshareAnnotation":
                 _purge_old_qc_runs(item, args.dry_run)
+                compress_gaqet_runs(item, args.dry_run)
                 dst = gm_dir / f"00_FigshareAnnotation_{args.figshare_doi}_Run01"
                 _move(item, dst, args.dry_run)
             else:
@@ -340,7 +358,7 @@ def migrate_repetitive_landscape(old_dir: Path, re_dir: Path, species_name: str,
     # EarlGrey: compress tool subdirs before moving
     earlgrey_src = landscape / "02_EarlGrey"
     if earlgrey_src.is_dir():
-        compress_earlgrey(earlgrey_src, species_name, args.dry_run)
+        compress_earlgrey(earlgrey_src, args.dry_run)
         _move(earlgrey_src,
               re_dir / f"03_EarlGrey_{args.earlgrey_version}_Run01",
               args.dry_run)
@@ -355,10 +373,12 @@ def migrate_repetitive_landscape(old_dir: Path, re_dir: Path, species_name: str,
         _copy(barrnap_dst, trnascan_dst, args.dry_run)
 
         log.info("Cleaning barrnap dir (removing tRNAscan-specific files)")
-        _clean_glob(barrnap_dst, "*.fasta",      args.dry_run)
-        _clean_glob(barrnap_dst, "*.fasta.gz",   args.dry_run)
-        _clean_glob(barrnap_dst, "*tDNA*",       args.dry_run)
-        _clean_glob(barrnap_dst, "RuntRNAscan*", args.dry_run)
+        _clean_glob(barrnap_dst, "*.fasta",             args.dry_run)
+        _clean_glob(barrnap_dst, "*.fasta.gz",          args.dry_run)
+        _clean_glob(barrnap_dst, "*tDNA*",              args.dry_run)
+        _clean_glob(barrnap_dst, "RuntRNAscan*",        args.dry_run)
+        _clean_glob(barrnap_dst, "*trnascan.out.txt",   args.dry_run)
+        _clean_glob(barrnap_dst, "*trnascan.stats.txt", args.dry_run)
 
         log.info("Cleaning tRNAscan dir (removing barrnap-specific files)")
         _clean_glob(trnascan_dst, "*.fasta",    args.dry_run)
