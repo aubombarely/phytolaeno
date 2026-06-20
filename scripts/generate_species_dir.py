@@ -39,16 +39,16 @@ NCBI_ESUMMARY = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
 
 SPECIES_DIRS = [
     "00_Taxonomy",
-    "01_Genome",
-    "02_Transcriptome",
+    "01_Genomes",
+    "02_Transcriptomes",
 ]
 
 ASSEMBLY_DIRS = [
     "00_SourceFiles",
     "01_Assembly_QC",
     "02_WorkingFiles",
-    "03_Annotations/00_Repetitive_landscape_annotation",
-    "03_Annotations/01_Gene_model_annotation",
+    "03_Annotations/00_Repetitive_landscape_annotations",
+    "03_Annotations/01_Gene_model_annotations",
 ]
 
 # ---------------------------------------------------------------------------
@@ -184,7 +184,7 @@ def setup_species(root: Path, species: str) -> Path:
 
 
 def setup_assembly(species_dir: Path, assembly: str) -> Path:
-    assembly_dir = species_dir / "01_Genome" / assembly
+    assembly_dir = species_dir / "01_Genomes" / assembly
     create_dirs([assembly_dir / d for d in ASSEMBLY_DIRS])
     return assembly_dir
 
@@ -233,7 +233,7 @@ def main(argv=None):
     # Assembly (optional)
     if args.assembly:
         setup_assembly(species_dir, args.assembly)
-        log.info("Assembly directory ready: %s", species_dir / "01_Genome" / args.assembly)
+        log.info("Assembly directory ready: %s", species_dir / "01_Genomes" / args.assembly)
 
     log.info("Done.")
 
