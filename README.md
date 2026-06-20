@@ -1,17 +1,309 @@
 # Phytolaeno
 
-**Phytolaeno** is a web-based portal for browsing, comparing, and managing plant genome assembly and annotation data. The name blends *Phyto-* (plant) with *Celaeno*, the mythical library from the Cthulhu Mythos — consistent with the lab's naming convention (see also: ShoggoTEh).
+**Phytolaeno** is a plant genome annotation management system that covers the full lifecycle from raw analysis outputs to an interactive web portal. The name blends *Phyto-* (plant) with *Celaeno*, the mythical library from the Cthulhu Mythos — consistent with the lab's naming convention (see also: ShoggoTEh).
+
+The system has four interconnected parts:
+
+1. **Directory setup** (`generate_species_dir.py`) — scaffold a standardised directory tree for each species and assembly on the server
+2. **Manifest generation** (`generate_manifest.py`) — walk the directory tree and auto-discover analysis outputs, producing a manifest TSV
+3. **Stats collection** (`collect_annotation_stats.py`) — parse pipeline outputs (GAQET, QUAST, BUSCO, EarlGrey, Barrnap/tRNAscan) into a single combined TSV
+4. **Web portal** (`app/`) — browse, compare, upload, and visualise assembly and annotation data through a FastAPI + PostgreSQL application
 
 ---
 
-## Features
+## Workflow Overview
 
-- Browse hundreds of plant species, their genome assemblies, and associated annotations
-- Filter species by name, taxonomic family, or lineage
-- Detailed views for each assembly, gene model annotation, and repeat element annotation
-- Upload new annotations (gene models and repeat elements) through a web form
-- Interactive plots: BUSCO distributions, gene model statistics, PSAURON scores, and repeat composition
-- Excel import script to bulk-load existing benchmark data
+```
+                           ┌─────────────────────────────────┐
+                           │  Genome annotation pipelines     │
+                           │  (BRAKER, HELIXER, EarlGrey …)   │
+                           └────────────────┬────────────────┘
+                                            │ outputs land in
+                                            ▼
+┌─────────────────────┐     ┌──────────────────────────────┐
+│ generate_species    │────▶│  BySpecies/ directory tree    │
+│ _dir.py             │     │  (standardised v2 layout)     │
+│                     │     └──────────────┬───────────────┘
+│ • species skeleton  │                    │
+│ • NCBI taxonomy     │                    ▼
+│ • assembly dirs     │     ┌──────────────────────────────┐
+└─────────────────────┘     │  generate_manifest.py         │
+                            │                              │
+                            │  • discovers assemblies      │
+                            │  • discovers annotations     │
+                            │  • produces manifest.tsv     │
+                            └──────────────┬───────────────┘
+                                           │
+                                           ▼
+                            ┌──────────────────────────────┐
+                            │  collect_annotation_stats.py  │
+                            │                              │
+                            │  • parses GAQET, QUAST,      │
+                            │    BUSCO, EarlGrey, rDNA     │
+                            │  • produces combined_stats   │
+                            └──────────────┬───────────────┘
+                                           │
+                                           ▼
+                            ┌──────────────────────────────┐
+                            │  Web portal (app/)            │
+                            │                              │
+                            │  • import_excel.py (bulk)    │
+                            │  • upload form (per entry)   │
+                            │  • browse / search / plots   │
+                            └──────────────────────────────┘
+```
+
+---
+
+## Part 1 — Directory Setup
+
+Use `generate_species_dir.py` to create the standard directory skeleton for a new species or to add an assembly to an existing one. The script also fetches NCBI taxonomy data automatically.
+
+```bash
+# Create a species skeleton (fetches taxonomy from NCBI)
+python scripts/generate_species_dir.py --root /path/to/BySpecies --species Nicotiana_tabacum
+
+# Add an assembly to an existing species
+python scripts/generate_species_dir.py --root /path/to/BySpecies --species Nicotiana_tabacum \
+    --assembly NtK326IBMCPv1
+
+# Preview what would be created without touching the filesystem
+python scripts/generate_species_dir.py --root /path/to/BySpecies --species Nicotiana_tabacum \
+    --assembly NtK326IBMCPv1 --dry_run
+
+# Skip NCBI taxonomy fetch (for servers without internet access)
+python scripts/generate_species_dir.py --root /path/to/BySpecies --species Nicotiana_tabacum \
+    --no_taxonomy
+```
+
+The script creates the following layout (v2):
+
+```
+{species_name}/
+├── 00_Taxonomy/
+│   ├── taxonomy.txt          ← human-readable summary
+│   ├── taxonomy.tsv          ← tab-separated fields
+│   └── taxonomy.json         ← machine-readable with full lineage list
+├── 01_Genomes/
+│   └── {assembly_name}/      ← created with --assembly; dir name IS the assembly name
+│       ├── 00_SourceFiles/   ← genome FASTA + equiv_seqID.txt
+│       ├── 01_Assembly_QC/   ← QUAST + BUSCO output
+│       ├── 02_WorkingFiles/
+│       └── 03_Annotations/
+│           ├── 00_Repetitive_landscape_annotations/   ← tool dirs added by analyses
+│           └── 01_Gene_model_annotations/             ← tool dirs added by analyses
+└── 02_Transcriptomes/        ← subdirs created by transcriptome analyses
+```
+
+All operations are idempotent — re-running with the same arguments is safe. Call the script once per assembly as new assemblies become available.
+
+---
+
+## Part 2 — Manifest Generation
+
+`generate_manifest.py` walks a `BySpecies/` root directory and auto-discovers analysis outputs for each species, producing a manifest TSV that drives stats collection.
+
+```bash
+# v2 layout (generated by generate_species_dir.py)
+python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
+    --layout v2
+
+# v1 legacy layout (default, for existing data)
+python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv
+
+# Limit to specific species
+python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
+    --layout v2 --species Arabidopsis_thaliana Nicotiana_benthamiana
+
+# Custom RE tool priority when multiple RE dirs are present (default: 02_EarlGrey)
+python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
+    --layout v2 --re_landscape_priority 01_RepeatModelerMasker,02_EarlGrey
+
+# Ignore specific directories during discovery
+python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
+    --layout v2 --ignore_dir 99_Comparison 98_Scratch
+```
+
+Two directory layouts are supported with `--layout`:
+
+### Layout v2 (new — generated by `generate_species_dir.py`)
+
+Assembly linking is implicit: annotations live under their assembly directory, so no filename matching is needed.
+
+```
+{species_name}/
+├── 01_Genomes/
+│   └── {assembly_name}/                                  ← dir name IS the assembly name
+│       ├── 00_SourceFiles/                               ← genome FASTA + equiv_seqID.txt
+│       ├── 01_Assembly_QC/                               ← QUAST + BUSCO
+│       └── 03_Annotations/
+│           ├── 00_Repetitive_landscape_annotations/
+│           │   ├── 02_EarlGrey/
+│           │   └── 10_rDNAtDNA/
+│           └── 01_Gene_model_annotations/
+│               └── {tool}/
+│                   └── AnnotationQC_{ts}/
+```
+
+### Layout v1 (legacy, default)
+
+Used for existing data that predates `generate_species_dir.py`. Annotations are linked to assemblies via `{assembly_name}*.gff3` filename matching.
+
+```
+{species_name}/
+├── 00_GenomeSource/
+│   └── {assembly_id}/
+│       ├── {assembly_name}_genome.fasta
+│       ├── {assembly_name}_genome.equiv_seqID.txt
+│       └── AssemblyQC/
+├── 03_AbInitioPredictions/
+│   └── {annotation_id}/
+│       ├── {assembly_name}*.gff3                         ← links annotation to assembly
+│       └── AnnotationQC_{ts}/
+└── 10_RepetitiveLandscape/
+    ├── 02_EarlGrey/
+    └── 10_rDNAtDNA/
+```
+
+### Manifest columns
+
+One manifest row is produced per `(assembly × annotation)` pair:
+
+| Column | Derived from |
+|--------|-------------|
+| `species_name` | Species directory name |
+| `assembly_name` | Stem of `*_genome.fasta` (v1) or assembly directory name (v2) |
+| `assembly_qc_dir` | `AssemblyQC/` (v1) or `01_Assembly_QC/` (v2) |
+| `equiv_seqid_file` | Path to `*.equiv_seqID.txt` (blank if absent) |
+| `gene_annotation_name` | `{species_name}_{TOOL}` — e.g. `Arabidopsis_thaliana_HELIXER` |
+| `repelem_annotation_name` | `{species_name}_{RE_TOOL}` — e.g. `Arabidopsis_thaliana_EARLGREY` |
+
+**RE tool priority:** when multiple tool directories exist, the first match in the priority list is used (default: `02_EarlGrey`). Falls back to the first alphabetically with a warning.
+
+All warnings are written to both the console and a timestamped file (`generate_manifest_warning_{timestamp}.log`), deleted automatically if empty. A summary table is printed at the end and saved to `generate_manifest_summary_{timestamp}.log`.
+
+---
+
+## Part 3 — Stats Collection
+
+`collect_annotation_stats.py` reads the manifest produced in Part 2 and parses each pipeline's output files, combining everything into a single TSV ready for import into the portal.
+
+```bash
+python scripts/collect_annotation_stats.py \
+    --manifest manifest.tsv \
+    --output combined_stats.tsv
+```
+
+### What is collected
+
+| Source | Output columns |
+|--------|---------------|
+| Manifest identity | `species_name`, `assembly_name`, `equiv_seqid_file`, `gene_annotation_name`, `repelem_annotation_name` |
+| GAQET `*_GAQET.stats.tsv` | Gene/transcript/CDS/exon counts, lengths, BUSCO, PSAURON, OMArk, DETENGA, protein hits; `Annotation_Version` → `Gene_Model_Annotation_Version` |
+| AssemblyQC BUSCO | `Assembly_BUSCO_viridiplantae_odb10`, `Assembly_BUSCO_embryophyta_odb10` |
+| QUAST `report.txt` | `Assembly_Total_Length_bp`, `Assembly_Contigs_N`, `Assembly_Largest_Contig_bp`, `Assembly_GC_pct`, `Assembly_N50_bp`, `Assembly_N90_bp`, `Assembly_auN_bp`, `Assembly_L50`, `Assembly_L90`, `Assembly_Ns_per_100kbp` |
+| EarlGrey `*.highLevelCount.txt` | `RE_{Class}_pct` and `RE_{Class}_Coverage_bp` for DNA, Rolling Circle, Penelope, LINE, SINE, LTR, Other, Unclassified, Non-Repeat; plus `RE_Genome_Size_bp` |
+| Barrnap + tRNAscan log | `rRNA_18S_N`, `rRNA_28S_N`, `rRNA_5.8S_N`, `rRNA_5S_N` (+ partial counts), `tRNA_gene_N`, `tRNA_pseudogene_N`, `tRNA_exon_N` |
+
+### Directory conventions expected
+
+- **GAQET**: `gaqet_dir/AnnotationQC_{timestamp}/Species_GAQET.stats.tsv` — the most recent `AnnotationQC_*` subdirectory is selected automatically.
+- **BUSCO**: subdirs inside `assembly_qc_dir` must contain both `busco` and either `virid` or `embry`.
+- **QUAST**: subdir inside `assembly_qc_dir` must contain `quast`; `report.txt` is parsed inside it.
+- **EarlGrey**: `*.highLevelCount.txt` searched directly in `earlgrey_dir`.
+- **rDNA log**: the SUMMARY section at the end of the log file is parsed.
+
+### Update behaviour
+
+When `--output` already exists, rows are matched by species name. Existing rows are overwritten; rows not in the manifest are preserved; new rows are appended. This allows safe incremental updates as new species are processed.
+
+---
+
+## Part 4 — Web Portal
+
+### Installation
+
+#### 1. Clone and create a virtual environment
+
+```bash
+git clone <repo-url>
+cd phytolaeno
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+#### 2. Configure the database
+
+```bash
+cp .env.example .env
+# Edit .env and set DATABASE_URL, e.g.:
+# DATABASE_URL=postgresql://postgres:password@localhost:5432/phytolaeno
+```
+
+```sql
+CREATE DATABASE phytolaeno;
+```
+
+#### 3. Start the server
+
+```bash
+uvicorn app.main:main --reload
+```
+
+Tables are created automatically on startup. Open your browser at `http://localhost:8000`.
+
+### Loading data
+
+**From the combined TSV** (output of Part 3, recommended for batch loads):
+
+```bash
+python scripts/import_excel.py PlantAnnotationBenchmark2025.xlsx
+```
+
+The script expects Sheet1 with one row per gene model annotation, groups by `Assembly_Version`, and creates Species, Assembly, RepeatAnnotation (EarlGrey, Barrnap, tRNAScan-SE), and GeneModelAnnotation records. Re-running is safe — existing records are reused.
+
+**From the web form** (for individual entries): navigate to `/upload` and fill the tabbed form.
+
+### URL Map
+
+| URL | Description |
+|---|---|
+| `/` | Home — summary stats and navigation cards |
+| `/species` | Paginated species list with search/filter by name, family, lineage |
+| `/species/{id}` | Species detail with all assemblies and annotation sub-lists |
+| `/assemblies/{id}` | Assembly detail with sortable GM and RE annotation tables |
+| `/annotations/gm/{id}` | Full gene model annotation detail: counts, lengths, quality flags, QC scores |
+| `/annotations/re/{id}` | Repeat annotation detail with per-class breakdown chart |
+| `/upload` | Tabbed form to add new gene model or repeat element annotations |
+| `/plots` | Interactive analysis plots |
+
+### Analysis Plots
+
+The `/plots` page renders five Plotly figures:
+
+1. **BUSCO completeness by tool** — box plot of viridiplantae BUSCO completeness per annotation tool
+2. **Gene models by tool** — box plot of gene model counts per tool
+3. **Mean intron vs mean exon length** — scatter plot coloured by tool
+4. **PSAURON score by tool** — box plot of annotation quality scores
+5. **Repeat content by species** — stacked bar chart of EarlGrey repeat classes (DNA, LTR, LINE, SINE, RC, Other)
+
+### Database Schema
+
+```
+Species
+  └── Assembly
+        ├── RepeatAnnotation  ← EarlGrey, Barrnap, tRNAScan-SE, …
+        │     └── AnnotationProtocol
+        └── GeneModelAnnotation  ← BRAKER, HELIXER, ANNEVO, …
+              └── AnnotationProtocol
+```
+
+- **Species** — name, NCBI TaxID, family, lineage
+- **Assembly** — version, source, size, status, assembly-level BUSCO (viridiplantae + embryophyta)
+- **AnnotationProtocol** — tool, version, commands, notes (shared by both annotation types)
+- **RepeatAnnotation** — total repeat %, raw output, per-class breakdown (JSON)
+- **GeneModelAnnotation** — gene/transcript/CDS/exon counts, length statistics, quality flags, BUSCO, OMArk, PSAURON, DETENGA, protein homology, GAQET, F1 scores
 
 ---
 
@@ -25,27 +317,6 @@
 | Templates | Jinja2 |
 | UI | Bootstrap 5.3 + Bootstrap Icons |
 | Plots | Plotly.js (client-side) + Plotly Python (server-side) |
-
----
-
-## Database Schema
-
-Five relational tables model the hierarchy of plant genomic data:
-
-```
-Species
-  └── Assembly
-        ├── RepeatAnnotation  ← EarlGrey, Barrnap, tRNAScan-SE, …
-        │     └── AnnotationProtocol
-        └── GeneModelAnnotation  ← MAKER, BRAKER, …
-              └── AnnotationProtocol
-```
-
-- **Species** — name, NCBI TaxID, family, lineage
-- **Assembly** — version, source, size, status, assembly-level BUSCO (viridiplantae + embryophyta)
-- **AnnotationProtocol** — tool, version, commands, notes (shared by both annotation types)
-- **RepeatAnnotation** — total repeat %, raw output, per-class breakdown (JSON)
-- **GeneModelAnnotation** — gene/transcript/CDS/exon counts, length statistics, quality flags, BUSCO, OMArk, PSAURON, DETENGA, protein homology, GAQET, F1 scores
 
 ---
 
@@ -76,284 +347,14 @@ phytolaeno/
 │       ├── upload.html
 │       └── plots.html
 ├── scripts/
-│   ├── import_excel.py               # Bulk import from Excel benchmark table
-│   ├── generate_manifest.py          # Auto-generate manifest from BySpecies/ directory tree
-│   └── collect_annotation_stats.py   # Automated data collection from analysis outputs
+│   ├── generate_species_dir.py       # Part 1 — directory setup
+│   ├── generate_manifest.py          # Part 2 — manifest generation
+│   ├── collect_annotation_stats.py   # Part 3 — stats collection
+│   └── import_excel.py               # Bulk import from Excel benchmark table
 ├── requirements.txt
 ├── .env.example
 └── .gitignore
 ```
-
----
-
-## Installation
-
-### 1. Clone and create a virtual environment
-
-```bash
-git clone <repo-url>
-cd phytolaeno
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 2. Configure the database
-
-```bash
-cp .env.example .env
-# Edit .env and set DATABASE_URL, e.g.:
-# DATABASE_URL=postgresql://postgres:password@localhost:5432/phytolaeno
-```
-
-Create the database in PostgreSQL:
-
-```sql
-CREATE DATABASE phytolaeno;
-```
-
-### 3. Start the server
-
-```bash
-uvicorn app.main:main --reload
-```
-
-The app creates all tables automatically on startup via `Base.metadata.create_all()`. Open your browser at `http://localhost:8000`.
-
----
-
-## Bulk Import
-
-To load data from the Excel benchmark table (`PlantAnnotationBenchmark2025.xlsx`):
-
-```bash
-python scripts/import_excel.py PlantAnnotationBenchmark2025.xlsx
-```
-
-The script expects Sheet1 with one row per gene model annotation. It groups rows by `Assembly_Version` and:
-
-- Creates one **Species** record per unique species name
-- Creates one **Assembly** record per unique assembly version
-- Creates three **RepeatAnnotation** records per assembly: EarlGrey, Barrnap, tRNAScan-SE
-- Creates one **GeneModelAnnotation** per row (with auto-detected protocol from `Annotation_Methodology`)
-
-Re-running the script is safe — existing species and assemblies are looked up by name/version and reused.
-
----
-
-## Setting Up a New Species Directory
-
-Use `generate_species_dir.py` to create the standard directory skeleton for a new species.
-
-```bash
-# Create species skeleton (fetches taxonomy from NCBI automatically)
-python scripts/generate_species_dir.py --root /path/to/BySpecies --species Nicotiana_tabacum
-
-# Add an assembly to an existing species
-python scripts/generate_species_dir.py --root /path/to/BySpecies --species Nicotiana_tabacum \
-    --assembly NtK326IBMCPv1
-
-# Preview what would be created without touching the filesystem
-python scripts/generate_species_dir.py --root /path/to/BySpecies --species Nicotiana_tabacum \
-    --assembly NtK326IBMCPv1 --dry_run
-
-# Skip NCBI taxonomy fetch (for servers without internet access)
-python scripts/generate_species_dir.py --root /path/to/BySpecies --species Nicotiana_tabacum \
-    --no_taxonomy
-```
-
-The script creates the following layout (v2):
-
-```
-{species_name}/
-├── 00_Taxonomy/
-│   ├── taxonomy.txt          ← human-readable summary
-│   ├── taxonomy.tsv          ← tab-separated fields
-│   └── taxonomy.json         ← machine-readable with full lineage
-├── 01_Genomes/
-│   └── {assembly_name}/      ← created with --assembly; dir name IS the assembly name
-│       ├── 00_SourceFiles/   ← genome FASTA + equiv_seqID.txt
-│       ├── 01_Assembly_QC/   ← QUAST + BUSCO output
-│       ├── 02_WorkingFiles/
-│       └── 03_Annotations/
-│           ├── 00_Repetitive_landscape_annotations/   ← tool dirs added by analyses
-│           └── 01_Gene_model_annotations/             ← tool dirs added by analyses
-└── 02_Transcriptomes/        ← subdirs created by transcriptome analyses
-```
-
-All operations are idempotent — re-running the script with the same arguments is safe.
-
----
-
-## Generating the Manifest
-
-Instead of filling the manifest by hand, use `generate_manifest.py` to auto-discover analysis outputs from a `BySpecies/` directory tree.
-
-```bash
-# All species (v1 legacy layout)
-python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv
-
-# New v2 layout (generated by generate_species_dir.py)
-python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
-    --layout v2
-
-# Specific species only
-python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
-    --species Arabidopsis_thaliana Nicotiana_benthamiana
-
-# Custom RE tool priority when multiple RE dirs are present (default: 02_EarlGrey)
-python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
-    --re_landscape_priority 01_RepeatModelerMasker,02_EarlGrey
-
-# Ignore specific directories during discovery (assembly, RE tool, and annotation dirs)
-python scripts/generate_manifest.py --root /path/to/BySpecies --output manifest.tsv \
-    --ignore_dir 99_Comparison 98_Scratch
-```
-
-Two directory layouts are supported with `--layout`:
-
-### Layout v1 (legacy, default)
-
-```
-{species_name}/
-├── 00_GenomeSource/
-│   └── {assembly_id}/                                    ← one or more assembly dirs
-│       ├── {assembly_name}_genome.fasta                  ← assembly_name source
-│       ├── {assembly_name}_genome.equiv_seqID.txt        ← optional sequence ID mapping
-│       └── AssemblyQC/                                   ← QUAST + BUSCO
-├── 03_AbInitioPredictions/
-│   └── {annotation_id}/                                  ← one manifest row per directory
-│       ├── {assembly_name}*.gff3                         ← links annotation to its assembly
-│       └── AnnotationQC_{ts}/                            ← GAQET output
-└── 10_RepetitiveLandscape/
-    ├── 02_EarlGrey/                                      ← repeat composition
-    └── 10_rDNAtDNA/                                      ← rDNA/tRNA log
-```
-
-**Multiple assemblies (v1):** each annotation is linked to its assembly by searching for `{assembly_name}*.gff3` inside the annotation directory. Annotations that cannot be linked are skipped with a warning. When only one assembly is present all annotations are assigned to it (backwards-compatible).
-
-### Layout v2 (new — generated by `generate_species_dir.py`)
-
-```
-{species_name}/
-├── 01_Genomes/
-│   └── {assembly_name}/                                  ← dir name IS the assembly name
-│       ├── 00_SourceFiles/                               ← genome FASTA + equiv_seqID.txt
-│       ├── 01_Assembly_QC/                               ← QUAST + BUSCO
-│       └── 03_Annotations/
-│           ├── 00_Repetitive_landscape_annotations/
-│           │   ├── 02_EarlGrey/
-│           │   └── 10_rDNAtDNA/
-│           └── 01_Gene_model_annotations/
-│               └── {tool}/
-│                   └── AnnotationQC_{ts}/
-```
-
-Assembly linking is implicit in v2 — annotations live under their assembly directory, so no filename matching is needed.
-
-### Common behaviour (both layouts)
-
-One manifest row is produced per `(assembly × annotation)` pair. The naming conventions are:
-
-| Column | Derived from |
-|--------|-------------|
-| `species_name` | Species directory name |
-| `assembly_name` | Stem of `*_genome.fasta` (v1) or assembly directory name (v2) |
-| `assembly_qc_dir` | `AssemblyQC/` (v1) or `01_Assembly_QC/` (v2) |
-| `equiv_seqid_file` | Path to `*.equiv_seqID.txt` (blank if absent) |
-| `gene_annotation_name` | `{species_name}_{TOOL}` — e.g. `Arabidopsis_thaliana_HELIXER` |
-| `repelem_annotation_name` | `{species_name}_{RE_TOOL}` — e.g. `Arabidopsis_thaliana_EARLGREY` |
-
-**RE tool priority:** when multiple tool directories exist, the first match in the priority list is used (default: `02_EarlGrey`). Override with `--re_landscape_priority`. Falls back to the first directory alphabetically with a warning.
-
-All warnings are written to both the console and a timestamped file (`generate_manifest_warning_{timestamp}.log`). The log file is deleted automatically if no warnings were produced.
-
----
-
-## Automated Data Collection
-
-`collect_annotation_stats.py` collects metrics from analysis pipeline outputs (GAQET, QUAST, BUSCO, EarlGrey, Barrnap/tRNAscan) into a single TSV file ready for import. Designed for batch runs over hundreds of species.
-
-```bash
-python scripts/collect_annotation_stats.py \
-    --manifest manifest.tsv \
-    --output combined_stats.tsv
-```
-
-### Manifest format
-
-Tab-separated file with one row per annotation. Lines starting with `#` are ignored. Column order must match:
-
-Use `generate_manifest.py` to produce this file automatically. Column order must match:
-
-| Column | Required | Description |
-|--------|----------|-------------|
-| `species_name` | Yes | Species directory name |
-| `assembly_name` | No | Stem of `*_genome.fasta` (without `_genome.fasta` suffix) |
-| `assembly_qc_dir` | No | `AssemblyQC/` directory with BUSCO and QUAST subdirectories |
-| `equiv_seqid_file` | No | Path to `*.equiv_seqID.txt` sequence ID mapping file |
-| `repelem_annotation_name` | No | RE annotation identifier (e.g. `Arabidopsis_thaliana_EARLGREY`) |
-| `rdna_log` | No | Path to a Barrnap + tRNAscan-SE combined log file |
-| `earlgrey_dir` | No | EarlGrey output directory containing `*.highLevelCount.txt` |
-| `gene_annotation_name` | Yes | Gene annotation identifier (e.g. `Arabidopsis_thaliana_HELIXER`) |
-| `gaqet_dir` | Yes | Directory containing `AnnotationQC_{timestamp}/` subdirectories |
-
-Example:
-```
-species_name             assembly_name                        assembly_qc_dir                    repelem_annotation_name         rdna_log                           earlgrey_dir                    gene_annotation_name             gaqet_dir
-Arabidopsis_thaliana     Arabidopsis_thaliana_TAIR10_genome   /data/Araport11/AssemblyQC         Arabidopsis_thaliana_EARLGREY   /data/10_rDNA/Run.log              /data/EarlGrey/summaryFiles/    Arabidopsis_thaliana_HELIXER     /data/03_AbInitio/00_HELIXER
-# this row is a comment and will be ignored
-```
-
-### What is collected
-
-| Source | Output columns |
-|--------|---------------|
-| Manifest identity columns | `species_name`, `assembly_name`, `equiv_seqid_file`, `gene_annotation_name`, `repelem_annotation_name` |
-| GAQET `*_GAQET.stats.tsv` | All annotation QC columns pass through (Species, gene/transcript counts, BUSCO, PSAURON, OMArk, DETENGA, protein hits…); `Annotation_Version` is renamed to `Gene_Model_Annotation_Version` |
-| AssemblyQC BUSCO | `Assembly_BUSCO_viridiplantae_odb10`, `Assembly_BUSCO_embryophyta_odb10` |
-| QUAST `report.txt` | `Assembly_Total_Length_bp`, `Assembly_Contigs_N`, `Assembly_Largest_Contig_bp`, `Assembly_GC_pct`, `Assembly_N50_bp`, `Assembly_N90_bp`, `Assembly_auN_bp`, `Assembly_L50`, `Assembly_L90`, `Assembly_Ns_per_100kbp` |
-| EarlGrey `*.highLevelCount.txt` | `RE_{Class}_pct` and `RE_{Class}_Coverage_bp` for DNA, Rolling Circle, Penelope, LINE, SINE, LTR, Other, Unclassified, Non-Repeat; plus `RE_Genome_Size_bp` |
-| Barrnap + tRNAscan log | `rRNA_18S_N`, `rRNA_18S_partial_N`, `rRNA_28S_N`, `rRNA_28S_partial_N`, `rRNA_5.8S_N`, `rRNA_5.8S_partial_N`, `rRNA_5S_N`, `rRNA_5S_partial_N`, `tRNA_gene_N`, `tRNA_pseudogene_N`, `tRNA_exon_N` |
-
-### Directory conventions expected
-
-- **GAQET**: `gaqet_dir/AnnotationQC_{timestamp}/Species_GAQET.stats.tsv` — the script auto-selects the most recent `AnnotationQC_*` subdirectory.
-- **BUSCO**: subdirectory names inside `assembly_qc_dir` must contain both `busco` and either `virid` (viridiplantae) or `embry` (embryophyta).
-- **QUAST**: subdirectory name inside `assembly_qc_dir` must contain `quast`; the `report.txt` file is parsed inside it.
-- **EarlGrey**: `*.highLevelCount.txt` is searched directly in `earlgrey_dir`.
-- **rDNA log**: the SUMMARY section at the end of the log file is parsed; the rest is ignored.
-
-### Update behaviour
-
-When `--output` already exists, rows are matched by the `Species` value from the GAQET stats file. Existing rows are overwritten with new data; rows not present in the manifest are preserved unchanged; new rows are appended. This allows incremental updates as new species are processed.
-
----
-
-## URL Map
-
-| URL | Description |
-|---|---|
-| `/` | Home — summary stats and navigation cards |
-| `/species` | Paginated species list with search/filter |
-| `/species/{id}` | Species detail with all assemblies |
-| `/assemblies/{id}` | Assembly detail with GM and RE annotation tables |
-| `/annotations/gm/{id}` | Full gene model annotation detail |
-| `/annotations/re/{id}` | Repeat annotation detail with breakdown chart |
-| `/upload` | Tabbed form to add new annotations |
-| `/plots` | Interactive analysis plots |
-
----
-
-## Analysis Plots
-
-The `/plots` page renders five Plotly figures:
-
-1. **BUSCO completeness by tool** — box plot of viridiplantae BUSCO completeness per annotation tool
-2. **Gene models by tool** — box plot of gene model counts per tool
-3. **Mean intron vs mean exon length** — scatter plot coloured by tool
-4. **PSAURON score by tool** — box plot of annotation quality scores
-5. **Repeat content by species** — stacked bar chart of EarlGrey repeat classes (DNA, LTR, LINE, SINE, RC, Other)
 
 ---
 
