@@ -160,6 +160,11 @@ def main(argv=None):
         WRITERS[args.format](rows, out)
         print(f"Written: {out}")
 
+    # Print summary table to stderr for quick inspection
+    print("\t".join(HEADER), file=sys.stderr)
+    for row in rows:
+        print("\t".join(str(row[k]) for k in HEADER), file=sys.stderr)
+
 
 if __name__ == "__main__":
     main()
