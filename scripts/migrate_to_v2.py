@@ -304,6 +304,9 @@ def migrate_source_dir(source_dir: Path, new_genomes: Path, species_name: str, a
                 compress_gaqet_runs(item, args.dry_run)
                 dst = gm_dir / f"00_FigshareAnnotation_{args.figshare_doi}_Run01"
                 _move(item, dst, args.dry_run)
+            elif item.name == "busco_downloads":
+                log.info("Removing busco_downloads in %s", source_dir.name)
+                _delete(item, args.dry_run)
             else:
                 log.warning("Unknown subdirectory in source dir, skipping: %s", item.name)
         elif item.is_file():
