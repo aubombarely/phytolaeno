@@ -73,6 +73,7 @@ import logging
 import shutil
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).parent
@@ -96,6 +97,36 @@ AGAT_LOG_FILES = [
     "mrna.agat.log",
     "reformatted_annotation.agat.log",
 ]
+
+BUSCO_RUN_DIRS = [
+    "run_viridiplantae_odb10",
+    "run_embryophyta_odb10",
+]
+
+
+# ── Local compress helper (no dedicated script for BUSCO runs) ─────────────────
+
+def _compress_dir(path: Path, dry_run: bool) -> None:
+    """Compress a directory to {name}.tar.gz in the same parent, then delete it."""
+    archive = path.parent / f"{path.name}.tar.gz"
+    if dry_run:
+        log.info("[DRY] tar czf  %s  &&  rm -rf  %s", archive.name, path.name)
+        return
+    log.info("Compressing  %s  ->  %s", path.name, archive.name)
+    with tarfile.open(archive, "w:gz") as tf:
+        tf.add(path, arcname=path.name)
+    shutil.rmtree(path)
+    log.info("Removed  %s", path.name)
+
+
+def compress_busco_runs(busco_dir: Path, dry_run: bool) -> None:
+    """Compress unarchived BUSCO run dirs (run_viridiplantae_odb10, etc.)."""
+    for name in BUSCO_RUN_DIRS:
+        path = busco_dir / name
+        if path.is_dir():
+            _compress_dir(path, dry_run)
+        else:
+            log.debug("BUSCO run dir not found or already compressed: %s", name)
 
 
 # ── Config loading ─────────────────────────────────────────────────────────────
@@ -269,9 +300,11 @@ def migrate_assembly_qc(assembly_qc: Path, aqc_dir: Path, args) -> None:
             dst = aqc_dir / f"01_QUAST_{args.quast_version}_Run01"
             _move(item, dst, args.dry_run)
         elif "busco" in name and ("viridi" in name or "viridiplantae" in name):
+            compress_busco_runs(item, args.dry_run)
             dst = aqc_dir / f"02_BUSCO_{args.busco_version}_Run01_Viridiplantae_odb10"
             _move(item, dst, args.dry_run)
         elif "busco" in name and ("embryo" in name or "embryophyta" in name):
+            compress_busco_runs(item, args.dry_run)
             dst = aqc_dir / f"02_BUSCO_{args.busco_version}_Run02_Embryophyta_odb10"
             _move(item, dst, args.dry_run)
         else:
