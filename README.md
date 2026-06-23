@@ -1,5 +1,9 @@
 # Phytolaeno
 
+<p align="center">
+  <img src="assets/phytolaeno_logo.svg" width="260" alt="Phytolaeno logo"/>
+</p>
+
 **Phytolaeno** is a plant genome annotation management system that covers the full lifecycle from raw analysis outputs to an interactive web portal. The name blends *Phyto-* (plant) with *Celaeno*, the mythical library from the Cthulhu Mythos — consistent with the lab's naming convention (see also: ShoggoTEh).
 
 The system has four interconnected parts:
