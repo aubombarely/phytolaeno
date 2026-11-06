@@ -65,11 +65,30 @@ def test_plots_bad_params_fall_back():
         assert 'class="alert alert-warning' in pages[p]["text"], p
 
 
-def test_species_page_embeds_plots():
+def test_species_page_compares_assemblies_not_species():
     i = ids()
     path = f"/species/{i['species:Arabidopsis thaliana']}"
     html = fetch([path])[path]["text"]
     assert 'id="plot_radar"' in html and 'id="plot_within"' in html
+    assert 'id="plot_assemblies"' in html and 'id="plot_across"' not in html
+    series = {t["name"] for t in _figure(html, "assemblies")["data"]}
+    assert series == {"TAIR10", "GCA_978657495.1_TAIR12_genomic"}
+
+
+def test_plots_page_is_single_species():
+    page = fetch(["/plots"])["/plots"]["text"]
+    assert "All species" not in page
+    labels = _figure(page, "within")["data"][0]["y"]          # default: first species
+    assert any(lbl.startswith("Araport11") for lbl in labels)
+    assert not any(lbl.startswith("MSU r7") for lbl in labels)
+
+
+def test_compare_page_across_species():
+    page = fetch(["/compare"])["/compare"]
+    assert page["status"] == 200
+    series = {t["name"] for t in _figure(page["text"], "across")["data"]}
+    assert series == {"Arabidopsis thaliana", "Oryza sativa", "Cucumis sativus"}
+    assert 'href="/compare"' in page["text"]                    # in the navigation bar
 
 
 def test_within_is_dot_plot_not_zero_based_bars():

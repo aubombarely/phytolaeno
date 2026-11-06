@@ -26,6 +26,7 @@ from app import models
 from app.metrics import AXES, AXIS_LABELS, ROLES, gaqet_axes, gas_score, role_shares
 
 BLUE, RED, GREY, AMBER = "#4C9BE8", "#E8604C", "#888888", "#F5A623"
+ASM_COLOURS = [BLUE, AMBER, RED, GREY]
 RADAR_MAX = 20
 
 
@@ -132,8 +133,25 @@ def _label(a, multi_assembly: bool) -> str:
     return f"{name} [{a.assembly.version}]" if multi_assembly else name
 
 
+def _tool(a) -> str:
+    return a.tool_name or (a.protocol.tool if a.protocol else "?")
+
+
+def _default_species(db: Session, p: PlotParams) -> None:
+    """Plots compare annotations within one species: default to the first one."""
+    if p.species_id is None and p.assembly_id is None:
+        first = db.query(models.Species).order_by(models.Species.name).first()
+        if first is not None:
+            p.species_id = first.id
+
+
 def build_figures(db: Session, p: PlotParams) -> dict[str, str]:
+    """Single-species figures: within, assemblies, radar and repeats."""
+    _default_species(db, p)
     species, assembly, anns = _scope(db, p)
+    if species is None and p.species_id is None:      # invalid id was dropped -> default
+        _default_species(db, p)
+        species, assembly, anns = _scope(db, p)
     label, getter = METRICS[p.metric]
     gas = {a.id: gas_score(gaqet_axes(a), p.weights) for a in anns}
     value = (lambda a: gas[a.id]) if p.metric == "gas" else getter
@@ -159,28 +177,25 @@ def build_figures(db: Session, p: PlotParams) -> dict[str, str]:
     within.update_yaxes(automargin=True)
     figs["within"] = within.to_json()
 
-    # across: metric per tool, one series per species (all species, selected highlighted)
-    all_anns = db.query(models.GeneModelAnnotation).all()
-    all_gas = {a.id: gas_score(gaqet_axes(a), p.weights) for a in all_anns}
-    val_all = (lambda a: all_gas[a.id]) if p.metric == "gas" else getter
-    tools = sorted({a.tool_name or (a.protocol.tool if a.protocol else "?") for a in all_anns})
-    across = go.Figure()
-    for sp in sorted({a.assembly.species for a in all_anns}, key=lambda s: s.name):
+    # assemblies: metric per tool, one series per assembly of the selected species
+    asm_list = sorted({a.assembly for a in anns}, key=lambda x: x.version)
+    tools = sorted({_tool(a) for a in anns})
+    comp = go.Figure()
+    for i, asm in enumerate(asm_list):
         ys = []
         for t in tools:
-            vals = [val_all(a) for a in all_anns if a.assembly.species_id == sp.id
-                    and (a.tool_name or (a.protocol.tool if a.protocol else "?")) == t
-                    and val_all(a) is not None]
+            vals = [value(a) for a in anns if a.assembly_id == asm.id and _tool(a) == t
+                    and value(a) is not None]
             ys.append(mean(vals) if vals else None)
-        hl = species is None or sp.id == species.id
-        across.add_trace(go.Scatter(
-            x=tools, y=ys, mode="markers", name=sp.name,
-            marker=dict(size=13 if hl else 9, color=BLUE if (species and hl) else (None if not species else GREY),
-                        opacity=1 if hl else 0.6, line=dict(width=1, color="#333")),
-            hovertemplate=f"{sp.name}<br>%{{x}}: %{{y:.2f}}<extra></extra>"))
-    across.update_layout(title=f"{label} by tool and species (mean of runs)", yaxis_title=label,
-                         template="plotly_white", height=420, legend_title="Species")
-    figs["across"] = across.to_json()
+        comp.add_trace(go.Scatter(
+            x=tools, y=ys, mode="markers", name=asm.version,
+            marker=dict(size=12, color=ASM_COLOURS[i % len(ASM_COLOURS)],
+                        line=dict(width=1, color="#333")),
+            hovertemplate=f"{asm.version}<br>%{{x}}: %{{y:.2f}}<extra></extra>"))
+    comp.update_layout(title=f"{label} by tool, per assembly (mean of runs)", yaxis_title=label,
+                       template="plotly_white", height=420, legend_title="Assembly",
+                       legend=dict(orientation="h", y=-0.35))
+    figs["assemblies"] = comp.to_json()
 
     # radar: GAQET axes, legend ordered by GAS (best first)
     ranked = sorted(selected, key=lambda a: (gas[a.id] is None, -(gas[a.id] or 0)))
@@ -218,6 +233,34 @@ def build_figures(db: Session, p: PlotParams) -> dict[str, str]:
                           legend_title="Class")
         figs["repeats"] = rep.to_json()
     return figs
+
+
+def build_species_comparison(db: Session, p: PlotParams) -> dict[str, str]:
+    """Across-species view: the chosen metric per tool, one series per species."""
+    label, getter = METRICS[p.metric]
+    species = db.get(models.Species, p.species_id) if p.species_id is not None else None
+    # across: metric per tool, one series per species (all species, selected highlighted)
+    all_anns = db.query(models.GeneModelAnnotation).all()
+    all_gas = {a.id: gas_score(gaqet_axes(a), p.weights) for a in all_anns}
+    val_all = (lambda a: all_gas[a.id]) if p.metric == "gas" else getter
+    tools = sorted({a.tool_name or (a.protocol.tool if a.protocol else "?") for a in all_anns})
+    across = go.Figure()
+    for sp in sorted({a.assembly.species for a in all_anns}, key=lambda s: s.name):
+        ys = []
+        for t in tools:
+            vals = [val_all(a) for a in all_anns if a.assembly.species_id == sp.id
+                    and (a.tool_name or (a.protocol.tool if a.protocol else "?")) == t
+                    and val_all(a) is not None]
+            ys.append(mean(vals) if vals else None)
+        hl = species is None or sp.id == species.id
+        across.add_trace(go.Scatter(
+            x=tools, y=ys, mode="markers", name=sp.name,
+            marker=dict(size=13 if hl else 9, color=BLUE if (species and hl) else (None if not species else GREY),
+                        opacity=1 if hl else 0.6, line=dict(width=1, color="#333")),
+            hovertemplate=f"{sp.name}<br>%{{x}}: %{{y:.2f}}<extra></extra>"))
+    across.update_layout(title=f"{label} by tool and species (mean of runs)", yaxis_title=label,
+                         template="plotly_white", height=420, legend_title="Species")
+    return {"across": across.to_json()}
 
 
 def selector_options(db: Session, p: PlotParams) -> dict:

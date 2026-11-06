@@ -146,8 +146,6 @@ def annotation_tags(ann) -> list[Tag]:
     micro = _num(getattr(ann, "micro_exon_pct", None))
     if micro is not None and micro >= MICRO_EXON_WARN_PCT and not is_ref:
         tags.append(Tag("micro_exons", f"Micro-exons {micro:.1f}%", "warning", "micro_exons"))
-    if tr and genes:
-        ratio = tr / genes
-        label = "1 isoform per gene" if round(ratio, 2) == 1 else f"{ratio:.2f} isoforms/gene"
-        tags.append(Tag("isoforms", label, "info", "isoforms"))
+    if tr and genes and round(tr / genes, 2) == 1:
+        tags.append(Tag("isoforms", "1 isoform/gene", "info", "isoforms"))
     return tags

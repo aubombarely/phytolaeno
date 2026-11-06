@@ -2,8 +2,9 @@
 {% block title %}Analysis Plots — Phytolaeno{% endblock %}
 {% block content %}
 <h2 class="mb-2"><i class="bi bi-bar-chart-line me-2" style="color:var(--ph-green)"></i>Analysis Plots</h2>
-<p class="small text-muted">Pick a species or an assembly to compare its annotations (left) and to see how each
-annotation tool does across species (right). The GAQET radar ranks annotations by the Global Annotation Score; change
+<p class="small text-muted">Pick a species, or one of its assemblies, to compare its annotations (left) and to see how each
+annotation tool does on each assembly of that species (right). To compare species, use
+<a href="/compare">Compare species</a>. The GAQET radar ranks annotations by the Global Annotation Score; change
 the weights to see how the ranking moves.</p>
 {% include "_plots.html" %}
 {% endblock %}

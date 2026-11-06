@@ -109,12 +109,12 @@ def test_no_utr_tag_threshold():
     assert "no_utrs" not in _keys(annotation_tags(_full(transcript_models_n=30000, utr5_n=600, utr3_n=0)))
 
 
-def test_isoform_tag():
-    tags = annotation_tags(_full(transcript_models_n=48456, gene_models_n=27655))
-    iso = [t for t in tags if t.key == "isoforms"]
-    assert iso and iso[0].label == "1.75 isoforms/gene" and iso[0].kind == "info"
+def test_isoform_tag_only_for_single_isoform():
     tags = annotation_tags(_full(transcript_models_n=25000, gene_models_n=25000))
-    assert [t.label for t in tags if t.key == "isoforms"] == ["1 isoform per gene"]
+    iso = [t for t in tags if t.key == "isoforms"]
+    assert [t.label for t in iso] == ["1 isoform/gene"] and iso[0].kind == "info"
+    tags = annotation_tags(_full(transcript_models_n=48456, gene_models_n=27655))
+    assert "isoforms" not in _keys(tags)
 
 
 def test_micro_exon_tag_hidden_without_data():

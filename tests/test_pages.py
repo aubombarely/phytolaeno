@@ -79,7 +79,11 @@ def test_species_page_without_new_fields(client):
         assert ">None<" not in r.text and "None</" not in r.text, path
 
 
-def test_assembly_size_from_quast():
+def test_assembly_table_units_in_headers():
     i = ids()
     html = next(iter(fetch([f"/species/{i['species:Arabidopsis thaliana']}"]).values()))["text"]
-    assert "119.67 Mb" in html and "142.48 Mb" in html
+    table = _section(html, 'ph-assembly-table', "</table>")
+    for header in ("Size (Mb)", "N90 (Mb)", "L90 (N)", "Assembly size, sequences &gt; 10 kb (Mb)"):
+        assert header in table, header
+    assert "119.67" in table and "142.48" in table and "18.59" in table
+    assert " Mb</td>" not in table and " Gb</td>" not in table

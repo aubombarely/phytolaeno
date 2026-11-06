@@ -7,7 +7,6 @@
     {% if form_action == "/plots" %}
     <div class="col-md-3"><label class="form-label mb-0">Species</label>
       <select name="species_id" class="form-select form-select-sm" onchange="this.form.assembly_id.value='';submitPlots()">
-        <option value="">All species</option>
         {% for s in options.species %}<option value="{{ s.id }}" {{ 'selected' if params.species_id == s.id }}>{{ s.name }}</option>{% endfor %}
       </select></div>
     {% endif %}
@@ -53,7 +52,7 @@
 
 <div class="row">
   <div class="col-lg-6"><div class="card shadow-sm mb-3"><div class="card-body p-2"><div id="plot_within"></div></div></div></div>
-  <div class="col-lg-6"><div class="card shadow-sm mb-3"><div class="card-body p-2"><div id="plot_across"></div></div></div></div>
+  <div class="col-lg-6"><div class="card shadow-sm mb-3"><div class="card-body p-2"><div id="plot_assemblies"></div></div></div></div>
 </div>
 <div class="card shadow-sm mb-3"><div class="card-body p-2"><div id="plot_radar"></div></div></div>
 {% if figures.repeats %}<div class="card shadow-sm mb-3"><div class="card-body p-2"><div id="plot_repeats"></div></div></div>{% endif %}
@@ -75,7 +74,7 @@
     Plotly.newPlot(divId, fig.data, fig.layout, {responsive: true, displayModeBar: true});
   }
 renderPlot("plot_within", {{ figures.within | safe }});
-renderPlot("plot_across", {{ figures.across | safe }});
+renderPlot("plot_assemblies", {{ figures.assemblies | safe }});
 renderPlot("plot_radar", {{ figures.radar | safe }});
 {% if figures.repeats %}renderPlot("plot_repeats", {{ figures.repeats | safe }});{% endif %}
 </script>
