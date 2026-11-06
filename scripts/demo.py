@@ -158,7 +158,10 @@ def build_demo_db() -> dict:
                 adesc, aurl = d("assembly", akey)
                 asm = models.Assembly(
                     species_id=species[sp_name].id, version=akey, source=_s(r["Source"]),
-                    size_gb=_f(r["Assembly_Size (Gb)"]), status=_s(r["Assembly_Status"]),
+                    # exact QUAST size when available, else the spreadsheet's rounded value
+                    size_gb=(_f(m.get("size_bp")) / 1e9 if _f(m.get("size_bp"))
+                             else _f(r["Assembly_Size (Gb)"])),
+                    status=_s(r["Assembly_Status"]),
                     pub_doi=_s(r["PUB_DOI"]),
                     **_busco_fields("busco_viridi", _s(r["Assembly_BUSCO_ViridiOdb10 (n:425)"]), parse_busco),
                     **_busco_fields("busco_embryo", _s(r["Assembly_BUSCO_EmbryoOdb10 (n:1614)"]), parse_busco),

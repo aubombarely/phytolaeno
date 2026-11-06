@@ -77,3 +77,9 @@ def test_species_page_without_new_fields(client):
         r = client.get(path)
         assert r.status_code == 200, path
         assert ">None<" not in r.text and "None</" not in r.text, path
+
+
+def test_assembly_size_from_quast():
+    i = ids()
+    html = next(iter(fetch([f"/species/{i['species:Arabidopsis thaliana']}"]).values()))["text"]
+    assert "119.67 Mb" in html and "142.48 Mb" in html

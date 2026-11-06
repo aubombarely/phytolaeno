@@ -16,7 +16,7 @@
     <td><a href="/assemblies/{{ asm.id }}" class="fw-bold">{{ asm.version }}</a>
       {% if asm.description %}<div class="small text-muted">{{ asm.description }}</div>{% endif %}</td>
     <td>{{ asm.assembly_type or asm.status or "—" }}</td>
-    <td class="text-end">{{ "%.2f Gb"|format(asm.size_gb) if asm.size_gb else "—" }}</td>
+    <td class="text-end">{% if asm.size_gb %}{{ "%.2f Mb"|format(asm.size_gb * 1000) if asm.size_gb < 10 else "%.2f Gb"|format(asm.size_gb) }}{% else %}—{% endif %}</td>
     {% if has_metrics %}
     <td class="text-end">{{ "{:,}".format(asm.n_sequences) if asm.n_sequences else "—" }}</td>
     <td class="text-end">{{ "{:,}".format(asm.n90_bp) if asm.n90_bp else "—" }} / {{ asm.l90 or "—" }}</td>
