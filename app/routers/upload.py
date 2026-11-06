@@ -7,6 +7,7 @@ from typing import Optional
 
 from app.database import get_db
 from app import models
+from app.metrics import gaqet_axes, gas_score
 from app.utils import parse_busco
 
 router = APIRouter()
@@ -139,6 +140,7 @@ def upload_gm(
         f1_score_locus=f1_score_locus,
         missed_loci=missed_loci, new_loci=new_loci,
     )
+    ann.gas_score = gas_score(gaqet_axes(ann))
     db.add(ann)
     db.commit()
     return RedirectResponse(f"/assemblies/{assembly_id}", status_code=303)

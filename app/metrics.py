@@ -149,3 +149,15 @@ def annotation_tags(ann) -> list[Tag]:
     if tr and genes and round(tr / genes, 2) == 1:
         tags.append(Tag("isoforms", "1 isoform/gene", "info", "isoforms"))
     return tags
+
+
+def annotation_gas(ann) -> float | None:
+    """Stored GAS, or computed on the fly for rows loaded without it (upload, import_excel)."""
+    stored = getattr(ann, "gas_score", None)
+    return stored if stored is not None else gas_score(gaqet_axes(ann))
+
+
+def ranked_annotations(anns) -> list[tuple[object, float | None]]:
+    """(annotation, GAS) best first; annotations without a score go last."""
+    scored = [(a, annotation_gas(a)) for a in anns]
+    return sorted(scored, key=lambda t: (t[1] is None, -(t[1] or 0)))
