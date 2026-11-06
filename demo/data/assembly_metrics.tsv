@@ -1,0 +1,6 @@
+assembly_key	assembly_type	size_bp	n_sequences	n90_bp	l90	ns_per_100kbp	total_length_ge10kb	plastid	mitochondrion
+ChineseLong_v3	Chromosome-level	226211662	85	22466726	7	15.99	226206186	not identified	not identified
+GCA_978657495.1_TAIR12_genomic	T2T gapless	142481245	5	25768865	5	0.00	142481245	no	no
+GCF_000004075.3_Cucumber_9930_V3_genomic	Chromosome-level	226640966	88	22466726	7	15.96	226635490	yes	yes
+Osativa_204	Chromosome-level	374471240	14	23207287	11	44.13	374471240	not identified	not identified
+TAIR10	Chromosome-level	119667750	7	18585056	5	155.60	119667750	yes	yes
