@@ -1,40 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Analysis Plots — Phytolaeno{% endblock %}
 {% block content %}
-<h2 class="mb-4"><i class="bi bi-bar-chart-line me-2" style="color:var(--ph-green)"></i>Analysis Plots</h2>
-
-{% macro plot_card(title, icon, div_id, fig_json, height="420px") %}
-<div class="card shadow-sm mb-4">
-  <div class="card-header card-header-ph"><i class="bi bi-{{ icon }} me-1"></i>{{ title }}</div>
-  <div class="card-body p-2">
-    {% if fig_json %}
-    <div id="{{ div_id }}" style="height:{{ height }};"></div>
-    {% else %}
-    <p class="text-muted text-center py-4">No data available yet.</p>
-    {% endif %}
-  </div>
-</div>
-{% endmacro %}
-
-{{ plot_card("BUSCO Completeness by Annotation Tool", "check2-circle", "plot_busco", busco_json) }}
-{{ plot_card("Gene Models per Annotation", "hash", "plot_gene_models", gene_models_json) }}
-{{ plot_card("Mean Intron vs Mean Exon Length", "arrows-expand", "plot_intron_exon", intron_exon_json) }}
-{{ plot_card("PSAURON Score by Annotation Tool", "star", "plot_psauron", psauron_json) }}
-{{ plot_card("Repeat Content by Species (EarlGrey)", "repeat", "plot_repeats", repeats_json, height="500px") }}
-{% endblock %}
-
-{% block scripts %}
-<script>
-  function renderPlot(divId, figJson) {
-    if (!figJson || !document.getElementById(divId)) return;
-    // Figures are embedded as object literals; accept a JSON string too.
-    const fig = (typeof figJson === "string") ? JSON.parse(figJson) : figJson;
-    Plotly.newPlot(divId, fig.data, fig.layout, {responsive: true, displayModeBar: true});
-  }
-  {% if busco_json %}renderPlot("plot_busco", {{ busco_json | safe }});{% endif %}
-  {% if gene_models_json %}renderPlot("plot_gene_models", {{ gene_models_json | safe }});{% endif %}
-  {% if intron_exon_json %}renderPlot("plot_intron_exon", {{ intron_exon_json | safe }});{% endif %}
-  {% if psauron_json %}renderPlot("plot_psauron", {{ psauron_json | safe }});{% endif %}
-  {% if repeats_json %}renderPlot("plot_repeats", {{ repeats_json | safe }});{% endif %}
-</script>
+<h2 class="mb-2"><i class="bi bi-bar-chart-line me-2" style="color:var(--ph-green)"></i>Analysis Plots</h2>
+<p class="small text-muted">Pick a species or an assembly to compare its annotations (left) and to see how each
+annotation tool does across species (right). The GAQET radar ranks annotations by the Global Annotation Score; change
+the weights to see how the ranking moves.</p>
+{% include "_plots.html" %}
 {% endblock %}

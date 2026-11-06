@@ -1,0 +1,81 @@
+{# Plot selectors + figures. Expects: figures (dict), params (PlotParams), options (dict), form_action (str). #}
+{% for n in params.notices %}
+<div class="alert alert-warning py-1 small">{{ n }}</div>
+{% endfor %}
+<form id="plotForm" method="get" action="{{ form_action }}" class="card card-body shadow-sm mb-3 small">
+  <div class="row g-2 align-items-end">
+    {% if form_action == "/plots" %}
+    <div class="col-md-3"><label class="form-label mb-0">Species</label>
+      <select name="species_id" class="form-select form-select-sm" onchange="this.form.assembly_id.value='';submitPlots()">
+        <option value="">All species</option>
+        {% for s in options.species %}<option value="{{ s.id }}" {{ 'selected' if params.species_id == s.id }}>{{ s.name }}</option>{% endfor %}
+      </select></div>
+    {% endif %}
+    <div class="col-md-3"><label class="form-label mb-0">Assembly</label>
+      <select name="assembly_id" class="form-select form-select-sm" onchange="submitPlots()">
+        <option value="">All assemblies</option>
+        {% for a in options.assemblies %}<option value="{{ a.id }}" {{ 'selected' if params.assembly_id == a.id }}>{{ a.version }}</option>{% endfor %}
+      </select></div>
+    <div class="col-md-3"><label class="form-label mb-0">Metric (bars and tools)</label>
+      <select name="metric" class="form-select form-select-sm" onchange="submitPlots()">
+        {% for k, lbl in options.metrics %}<option value="{{ k }}" {{ 'selected' if params.metric == k }}>{{ lbl }}</option>{% endfor %}
+      </select></div>
+    <div class="col-md-3">
+      <details><summary>Annotations ({{ params.annotation_ids | length or "all" }})</summary>
+        <div style="max-height:14rem;overflow:auto">
+        {% for a in options.annotations %}
+        <div class="form-check"><input class="form-check-input ann-box" type="checkbox" value="{{ a.id }}" id="ann{{ a.id }}"
+          {{ 'checked' if a.id in params.annotation_ids }}><label class="form-check-label" for="ann{{ a.id }}">{{ a.display_name or a.version_label }}
+          <span class="text-muted">[{{ a.assembly.version }}]</span></label></div>
+        {% endfor %}
+        </div>
+        <button type="button" class="btn btn-sm btn-ph mt-1" onclick="submitPlots()">Apply</button>
+      </details>
+    </div>
+  </div>
+  <details class="mt-2"><summary>GAS weights (share of the score per analysis, %) — leave empty for equal shares</summary>
+    <div class="row g-2 mt-1">
+      {% for role in options.roles %}
+      <div class="col-6 col-md-2"><label class="form-label mb-0 text-capitalize">{{ "OMArk" if role == "omark" else ("DeTEnGA" if role == "detenga" else ("AGAT start/stop" if role == "agat" else role)) }}
+        <output id="out_{{ role }}">{{ params.weights[role] | int if params.weights and role in params.weights else "" }}</output></label>
+        <input type="range" class="form-range w-slider" min="0" max="100" step="5" data-role="{{ role }}"
+          value="{{ params.weights[role] | int if params.weights and role in params.weights else 0 }}"
+          data-set="{{ '1' if params.weights and role in params.weights else '0' }}"
+          oninput="this.dataset.set='1';document.getElementById('out_{{ role }}').textContent=this.value"
+          onchange="submitPlots()"></div>
+      {% endfor %}
+    </div>
+    <a href="{{ form_action }}{% if params.assembly_id %}?assembly_id={{ params.assembly_id }}{% elif params.species_id and form_action == '/plots' %}?species_id={{ params.species_id }}{% endif %}" class="small">Reset weights and selection</a>
+  </details>
+  <input type="hidden" name="annotation_ids" id="annotation_ids">
+  <input type="hidden" name="weights" id="weights">
+</form>
+
+<div class="row">
+  <div class="col-lg-6"><div class="card shadow-sm mb-3"><div class="card-body p-2"><div id="plot_within"></div></div></div></div>
+  <div class="col-lg-6"><div class="card shadow-sm mb-3"><div class="card-body p-2"><div id="plot_across"></div></div></div></div>
+</div>
+<div class="card shadow-sm mb-3"><div class="card-body p-2"><div id="plot_radar"></div></div></div>
+{% if figures.repeats %}<div class="card shadow-sm mb-3"><div class="card-body p-2"><div id="plot_repeats"></div></div></div>{% endif %}
+
+<script>
+  function submitPlots() {
+    const f = document.getElementById("plotForm");
+    const ids = [...document.querySelectorAll(".ann-box:checked")].map(b => b.value);
+    f.annotation_ids.value = ids.join(",");
+    const w = [...document.querySelectorAll(".w-slider")].filter(s => s.dataset.set === "1")
+              .map(s => s.dataset.role + ":" + s.value);
+    f.weights.value = w.join(",");
+    for (const el of [f.annotation_ids, f.weights]) { if (!el.value) el.disabled = true; }
+    f.submit();
+  }
+  function renderPlot(divId, figJson) {
+    if (!figJson || !document.getElementById(divId)) return;
+    const fig = (typeof figJson === "string") ? JSON.parse(figJson) : figJson;
+    Plotly.newPlot(divId, fig.data, fig.layout, {responsive: true, displayModeBar: true});
+  }
+renderPlot("plot_within", {{ figures.within | safe }});
+renderPlot("plot_across", {{ figures.across | safe }});
+renderPlot("plot_radar", {{ figures.radar | safe }});
+{% if figures.repeats %}renderPlot("plot_repeats", {{ figures.repeats | safe }});{% endif %}
+</script>
