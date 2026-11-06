@@ -4,7 +4,7 @@ Plant genome annotation management system: directory scaffolding, manifest
 generation, stats collection, and a FastAPI + PostgreSQL web portal for
 browsing and comparing assemblies and annotations.
 
-**Current version:** unversioned (versioning not yet applied)
+**Current version:** v0.1.1 (2026-11-06)
 
 This project follows the shared coding blueprint at `../CLAUDE.md` where
 applicable. Note that the web application (`app/`) follows FastAPI conventions
@@ -29,7 +29,10 @@ standalone scripts in `scripts/` and note the web-specific deviations below.
 - **PostgreSQL** — database backend; connection string via environment variable
 - `fastapi`, `uvicorn`, `sqlalchemy`, `psycopg2` — web app stack
 - `pandas`, `openpyxl` — stats parsing and Excel import
-- `matplotlib` — server-side plot generation
+- `plotly` — server-side plot generation
+- Dependencies pinned in `requirements.txt`; keep SQLAlchemy on 2.0.x
+  (2.1 defaults to psycopg v3) unless the driver is switched.
+- Tests: `python -m pytest -q tests` (SQLite, no PostgreSQL needed).
 
 ## Blueprint compliance status
 
@@ -38,8 +41,10 @@ follow it. Priority gaps to address when making changes:
 
 - [ ] Add `VERSION` strings to all scripts in `scripts/`
 - [ ] Add run log (date/user/server/command) to long-running scripts
-- [ ] Add `CHANGELOG.md`
-- [ ] Add version badge to README
+- [x] Add `CHANGELOG.md` (v0.1.1)
+- [x] Add version badge to README (v0.1.1)
+- [ ] Authentication for `/upload/*` before any public deployment
+- [ ] `import_excel.py` connects to the DB at import time (even for `--help`)
 
 ## Web app conventions (deviations from CLI blueprint)
 

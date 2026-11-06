@@ -2,18 +2,18 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 title: "phytolaeno"
 abstract: >
-  phytolaeno is a web portal for storing, browsing, and comparing plant genome
-  annotation data. Built with FastAPI and PostgreSQL, it provides a REST API
-  and interactive interface for managing gene models, repeat annotations, and
-  QC metrics across multiple species. Named after Phytolacca (pokeweed) + laeno
-  (web/network).
+  Phytolaeno is a plant genome annotation management system: scripts that
+  organise and collect assembly and annotation QC outputs (GAQET, QUAST, BUSCO,
+  EarlGrey, barrnap, tRNAscan-SE), and a FastAPI + PostgreSQL web portal to
+  browse, compare and upload them. The name blends Phyto- (plant) with
+  Celaeno, the library of the Cthulhu Mythos.
 authors:
   - family-names: Bombarely
     given-names: Aureliano
     email: aubombarely@gmail.com
     orcid: "https://orcid.org/0000-0001-6257-8914"
-version: "v0.1.0"
-date-released: "2026-06-24"
+version: "v0.1.1"
+date-released: "2026-11-06"
 license: MIT
 repository-code: "https://github.com/aubombarely/phytolaeno"
 keywords:

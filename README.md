@@ -4,6 +4,16 @@
   <img src="assets/phytolaeno_logo.svg" width="260" alt="Phytolaeno logo"/>
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/version-v0.1.1-teal"/>
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue"/>
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey"/>
+  <img src="https://img.shields.io/badge/license-MIT-green"/>
+  <img src="https://img.shields.io/badge/status-active%20development-orange"/>
+</p>
+
+<p align="center"><a href="CHANGELOG.md">Changelog</a></p>
+
 **Phytolaeno** is a plant genome annotation management system that covers the full lifecycle from raw analysis outputs to an interactive web portal. The name blends *Phyto-* (plant) with *Celaeno*, the mythical library from the Cthulhu Mythos — consistent with the lab's naming convention (see also: ShoggoTEh).
 
 The system has four interconnected parts:
@@ -12,6 +22,18 @@ The system has four interconnected parts:
 2. **Manifest generation** (`generate_manifest.py`) — walk the directory tree and auto-discover analysis outputs, producing a manifest TSV
 3. **Stats collection** (`collect_annotation_stats.py`) — parse pipeline outputs (GAQET, QUAST, BUSCO, EarlGrey, Barrnap/tRNAscan) into a single combined TSV
 4. **Web portal** (`app/`) — browse, compare, upload, and visualise assembly and annotation data through a FastAPI + PostgreSQL application
+
+---
+
+## Project status
+
+Phytolaeno is **under active development**. The data-management scripts (Parts 1–3) are used in production on the lab's servers to organise the annotation outputs of hundreds of plant genomes, and the web portal (Part 4) is functional but not yet publicly deployed. Current work:
+
+- migration of the existing data to the v2 directory layout (see Part 1);
+- a public instance of the portal, with authentication for the upload routes;
+- extending the data model beyond annotations to gene families and ranked candidate genes.
+
+Interfaces and the database schema may still change between minor versions. See the [CHANGELOG](CHANGELOG.md).
 
 ---
 
@@ -230,7 +252,7 @@ When `--output` already exists, rows are matched by species name. Existing rows 
 #### 1. Clone and create a virtual environment
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/aubombarely/phytolaeno.git
 cd phytolaeno
 python3 -m venv .venv
 source .venv/bin/activate
@@ -252,7 +274,7 @@ CREATE DATABASE phytolaeno;
 #### 3. Start the server
 
 ```bash
-uvicorn app.main:main --reload
+uvicorn app.main:app --reload
 ```
 
 Tables are created automatically on startup. Open your browser at `http://localhost:8000`.
@@ -262,7 +284,7 @@ Tables are created automatically on startup. Open your browser at `http://localh
 **From the combined TSV** (output of Part 3, recommended for batch loads):
 
 ```bash
-python scripts/import_excel.py PlantAnnotationBenchmark2025.xlsx
+python scripts/import_excel.py --excel PlantAnnotationBenchmark2025.xlsx
 ```
 
 The script expects Sheet1 with one row per gene model annotation, groups by `Assembly_Version`, and creates Species, Assembly, RepeatAnnotation (EarlGrey, Barrnap, tRNAScan-SE), and GeneModelAnnotation records. Re-running is safe — existing records are reused.
@@ -355,7 +377,12 @@ phytolaeno/
 │   ├── generate_manifest.py          # Part 2 — manifest generation
 │   ├── collect_annotation_stats.py   # Part 3 — stats collection
 │   └── import_excel.py               # Bulk import from Excel benchmark table
+├── tests/                            # pytest suite (SQLite, no PostgreSQL needed)
 ├── requirements.txt
+├── requirements-dev.txt
+├── CHANGELOG.md
+├── CITATION.cff
+├── LICENSE
 ├── .env.example
 └── .gitignore
 ```
@@ -364,25 +391,32 @@ phytolaeno/
 
 ## Dependencies
 
+Python 3.10+ and PostgreSQL. All Python dependencies are pinned in
+[`requirements.txt`](requirements.txt): FastAPI, Uvicorn, SQLAlchemy 2.0
+(with psycopg2), Alembic, Jinja2, python-multipart, python-dotenv, pandas,
+openpyxl and Plotly.
+
+---
+
+## Testing
+
+The test suite runs against a throw-away SQLite database, so no PostgreSQL
+server is needed:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q tests
 ```
-fastapi
-uvicorn[standard]
-sqlalchemy
-psycopg2-binary
-alembic
-jinja2
-python-multipart
-python-dotenv
-pandas
-openpyxl
-plotly
-```
+
+It renders every portal page, stores an annotation through the upload form,
+and checks the BUSCO/EarlGrey parsers.
 
 ---
 
 ## License
 
-To be defined.
+MIT — see [LICENSE](LICENSE). If you use Phytolaeno, please cite it using
+[`CITATION.cff`](CITATION.cff).
 
 ---
 
