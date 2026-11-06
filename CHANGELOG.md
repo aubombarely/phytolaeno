@@ -2,6 +2,31 @@
 
 All notable changes to Phytolaeno are documented here.
 
+## [v0.3.0] — 2026-11-06
+
+### Added
+- All-real demo: *Arabidopsis thaliana*, *Oryza sativa* and *Cucumis sativus*
+  (5 assemblies, 41 annotations) from the KATULU / GAQET benchmark, extracted
+  by `scripts/build_demo_data.py` into `demo/data/`.
+- Species pages follow Species → Assemblies → Annotations: descriptions and
+  source links, NCBI Taxonomy / GoaT / Wikispecies links, an assembly table
+  with QUAST metrics (type, size, sequences, N90/L90, N's per 100 kbp,
+  sequences > 10 kb, plastid and mitochondrion), and per-assembly annotation
+  tables ranked by the Global Annotation Score.
+- `app/metrics.py`: GAQET radar axes and Global Annotation Score (GAS),
+  following GAQET2's `gaqet_plot.py` (revision branch), with per-analysis
+  weights; insight tags (*No UTRs* when < 1% of transcripts have a UTR;
+  *1 isoform/gene*; a micro-exon tag that stays hidden until data exist).
+- Plots: per-species selectors (assembly, annotations, metric), annotation dot
+  plot, per-assembly tool comparison, interactive GAQET radar with GAS weight
+  sliders, repeat content; new **Compare species** page (`/compare`).
+- New nullable columns for assembly metrics, descriptions, links, Zenodo URL,
+  micro-exon percentage and GAS (`import_excel.py` unchanged).
+- Tests for data extraction, metrics, pages and plots (47 in total).
+
+### Changed
+- The 11 synthetic species and the "synthetic data" banner are removed.
+
 ## [v0.2.0] — 2026-11-06
 
 ### Added

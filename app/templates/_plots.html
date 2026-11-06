@@ -15,7 +15,7 @@
         <option value="">All assemblies</option>
         {% for a in options.assemblies %}<option value="{{ a.id }}" {{ 'selected' if params.assembly_id == a.id }}>{{ a.version }}</option>{% endfor %}
       </select></div>
-    <div class="col-md-3"><label class="form-label mb-0">Metric (bars and tools)</label>
+    <div class="col-md-3"><label class="form-label mb-0">Metric</label>
       <select name="metric" class="form-select form-select-sm" onchange="submitPlots()">
         {% for k, lbl in options.metrics %}<option value="{{ k }}" {{ 'selected' if params.metric == k }}>{{ lbl }}</option>{% endfor %}
       </select></div>
