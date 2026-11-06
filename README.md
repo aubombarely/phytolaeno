@@ -5,14 +5,18 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.1.1-teal"/>
+  <img src="https://img.shields.io/badge/version-v0.2.0-teal"/>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue"/>
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
   <img src="https://img.shields.io/badge/status-active%20development-orange"/>
 </p>
 
-<p align="center"><a href="CHANGELOG.md">Changelog</a></p>
+<p align="center">
+  <a href="https://codespaces.new/aubombarely/phytolaeno?quickstart=1"><img src="https://github.com/codespaces/badge.svg" alt="Open the demo in GitHub Codespaces"/></a>
+</p>
+
+<p align="center"><a href="#try-the-demo">Try the demo</a> · <a href="#screenshots">Screenshots</a> · <a href="CHANGELOG.md">Changelog</a></p>
 
 **Phytolaeno** is a plant genome annotation management system that covers the full lifecycle from raw analysis outputs to an interactive web portal. The name blends *Phyto-* (plant) with *Celaeno*, the mythical library from the Cthulhu Mythos — consistent with the lab's naming convention (see also: ShoggoTEh).
 
@@ -22,6 +26,56 @@ The system has four interconnected parts:
 2. **Manifest generation** (`generate_manifest.py`) — walk the directory tree and auto-discover analysis outputs, producing a manifest TSV
 3. **Stats collection** (`collect_annotation_stats.py`) — parse pipeline outputs (GAQET, QUAST, BUSCO, EarlGrey, Barrnap/tRNAscan) into a single combined TSV
 4. **Web portal** (`app/`) — browse, compare, upload, and visualise assembly and annotation data through a FastAPI + PostgreSQL application
+
+---
+
+## Try the demo
+
+The demo runs the full portal on a small SQLite database, with no PostgreSQL
+needed. It contains:
+
+- ***Arabidopsis thaliana*: real data.** GAQET quality metrics for 17 genome
+  annotations on four assemblies. These are the public references (Araport11,
+  RefSeq, TAIR10, TAIR12) and 13 annotation-tool runs (ANNEVO, Helixer, BRAKER,
+  EGAPx, EviAnn, GeMoMa, MAKER, StringTie+TD) from the GAQET benchmark
+  (García-Carpintero *et al.*, in revision). Source table:
+  [`demo/data/Athaliana_GAQET_benchmark.tsv`](demo/data/Athaliana_GAQET_benchmark.tsv).
+- **Eleven other plant species: synthetic data.** The values are generated
+  reproducibly (`random.seed(42)`) to show how the portal compares many genomes.
+  The species names are real; the numbers are not results.
+
+A banner on every page and the assembly *Source* field state which records
+are real and which are synthetic.
+
+**Option 1: in your browser, no installation.** Click
+[**Open in GitHub Codespaces**](https://codespaces.new/aubombarely/phytolaeno?quickstart=1)
+(this needs a free GitHub account). The demo builds itself and opens the portal
+on port 8000 after about 2 minutes.
+
+**Option 2: on your computer** (Python 3.10+):
+
+```bash
+git clone https://github.com/aubombarely/phytolaeno.git
+cd phytolaeno
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python scripts/demo.py          # then open http://localhost:8000
+```
+
+Use `python scripts/demo.py --no_serve` to only build the database
+(`demo/phytolaeno_demo.db`), or `--port` to choose another port.
+
+---
+
+## Screenshots
+
+All screenshots come from the demo database.
+
+| | |
+|---|---|
+| **Home:** archive summary<br><img src="docs/screenshots/01_home.png" width="420"/> | **Species list:** all species in the archive<br><img src="docs/screenshots/02_species_list.png" width="420"/> |
+| **Species:** *A. thaliana*, four assemblies and 17 annotations (real GAQET data)<br><img src="docs/screenshots/03_species_detail.png" width="420"/> | **Assembly:** annotations of one assembly side by side<br><img src="docs/screenshots/04_assembly_detail.png" width="420"/> |
+| **Annotation:** full GAQET QC of one gene-model annotation (ANNEVO v2.2.3; real data, note the missing UTRs)<br><img src="docs/screenshots/05_annotation_detail.png" width="420"/> | **Plots:** BUSCO, gene counts, exon/intron length, PSAURON and repeat content across annotations and tools<br><img src="docs/screenshots/06_plots.png" width="420"/> |
 
 ---
 
@@ -377,6 +431,10 @@ phytolaeno/
 │   ├── generate_manifest.py          # Part 2 — manifest generation
 │   ├── collect_annotation_stats.py   # Part 3 — stats collection
 │   └── import_excel.py               # Bulk import from Excel benchmark table
+├── scripts/demo.py                   # one-command demo (SQLite)
+├── demo/data/                        # real A. thaliana GAQET table used by the demo
+├── docs/screenshots/                 # README screenshots (from the demo)
+├── .devcontainer/                    # GitHub Codespaces demo configuration
 ├── tests/                            # pytest suite (SQLite, no PostgreSQL needed)
 ├── requirements.txt
 ├── requirements-dev.txt

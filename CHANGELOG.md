@@ -2,6 +2,25 @@
 
 All notable changes to Phytolaeno are documented here.
 
+## [v0.2.0] — 2026-11-06
+
+### Added
+- One-command demo (`scripts/demo.py`). It builds a SQLite database and starts
+  the portal. *Arabidopsis thaliana* uses real GAQET metrics for 17 annotations
+  (`demo/data/Athaliana_GAQET_benchmark.tsv`); 11 other species are synthetic.
+  Every page carries a banner saying which data are real.
+- GitHub Codespaces configuration (`.devcontainer/`) to run the demo in the
+  browser without installing anything, plus an "Open in Codespaces" badge.
+- Screenshots in the README (`docs/screenshots/`).
+- Test of the demo builder (`tests/test_demo.py`).
+
+### Fixed
+- The Plots page drew nothing: the template called `JSON.parse` on figures that
+  were already embedded as objects (bug present since the initial commit).
+- The Plots page now loads Plotly.js 4.1.1, matching the pinned Python Plotly 7.
+- Assembly names on the species page were white text on a light header and
+  could not be read.
+
 ## [v0.1.1] — 2026-11-06
 
 ### Added

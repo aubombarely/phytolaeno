@@ -27,7 +27,8 @@
 <script>
   function renderPlot(divId, figJson) {
     if (!figJson || !document.getElementById(divId)) return;
-    const fig = JSON.parse(figJson);
+    // Figures are embedded as object literals; accept a JSON string too.
+    const fig = (typeof figJson === "string") ? JSON.parse(figJson) : figJson;
     Plotly.newPlot(divId, fig.data, fig.layout, {responsive: true, displayModeBar: true});
   }
   {% if busco_json %}renderPlot("plot_busco", {{ busco_json | safe }});{% endif %}
