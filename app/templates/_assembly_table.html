@@ -1,0 +1,36 @@
+{# Assembly metrics table; expects `asms` (list of Assembly). Units are in the headers. #}
+{% set has_metrics = asms | selectattr("n_sequences") | list | length > 0 %}
+<div class="table-responsive">
+<table class="table table-sm align-middle ph-assembly-table">
+  <thead><tr>
+    <th style="width:16rem;max-width:16rem">Assembly</th><th>Type</th><th class="text-end">Size (Mb)</th>
+    {% if has_metrics %}<th class="text-end">Sequences (N)</th>
+    <th class="text-end">N90 (Mb)</th><th class="text-end">L90 (N)</th>
+    <th class="text-end" title="QUAST: number of N's per 100 kbp">N's per 100 kbp</th>
+    <th class="text-end" title="QUAST: total length of sequences ≥ 10 kb">Assembly size, sequences &gt; 10 kb (Mb)</th>
+    <th>Plastid</th><th>Mito</th>{% endif %}
+    <th class="text-end">BUSCO C (%)</th><th>Source</th>
+  </tr></thead>
+  <tbody>
+  {% for asm in asms %}
+  <tr>
+    <td style="width:16rem;max-width:16rem"><a href="/assemblies/{{ asm.id }}" class="fw-bold text-break">{{ asm.version }}</a>
+      {% if asm.description %}<div class="small text-muted">{{ asm.description }}</div>{% endif %}</td>
+    <td>{{ asm.assembly_type or asm.status or "—" }}</td>
+    <td class="text-end">{{ "%.2f"|format(asm.size_gb * 1000) if asm.size_gb else "—" }}</td>
+    {% if has_metrics %}
+    <td class="text-end">{{ "{:,}".format(asm.n_sequences) if asm.n_sequences else "—" }}</td>
+    <td class="text-end">{{ "%.2f"|format(asm.n90_bp / 1000000) if asm.n90_bp else "—" }}</td>
+    <td class="text-end">{{ asm.l90 or "—" }}</td>
+    <td class="text-end">{{ "%.2f"|format(asm.ns_per_100kbp) if asm.ns_per_100kbp is not none else "—" }}</td>
+    <td class="text-end">{{ "%.2f"|format(asm.total_length_ge10kb / 1000000) if asm.total_length_ge10kb else "—" }}</td>
+    <td>{{ (asm.plastid or "—") | capitalize }}</td>
+    <td>{{ (asm.mitochondrion or "—") | capitalize }}</td>
+    {% endif %}
+    <td class="text-end">{{ "%.1f"|format(asm.busco_viridi_complete) if asm.busco_viridi_complete is not none else "—" }}</td>
+    <td class="small">{% if asm.source_url %}<a href="{{ asm.source_url }}" target="_blank" rel="noopener">{{ asm.source or "Source" }} <i class="bi bi-box-arrow-up-right"></i></a>{% else %}{{ asm.source or "—" }}{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>

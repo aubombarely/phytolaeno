@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.2.0-teal"/>
+  <img src="https://img.shields.io/badge/version-v0.3.0-teal"/>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue"/>
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
@@ -32,20 +32,36 @@ The system has four interconnected parts:
 ## Try the demo
 
 The demo runs the full portal on a small SQLite database, with no PostgreSQL
-needed. It contains:
+needed. **All data are real**: three species from the KATULU / GAQET plant
+annotation benchmark (García-Carpintero *et al.*, in revision).
 
-- ***Arabidopsis thaliana*: real data.** GAQET quality metrics for 17 genome
-  annotations on four assemblies. These are the public references (Araport11,
-  RefSeq, TAIR10, TAIR12) and 13 annotation-tool runs (ANNEVO, Helixer, BRAKER,
-  EGAPx, EviAnn, GeMoMa, MAKER, StringTie+TD) from the GAQET benchmark
-  (García-Carpintero *et al.*, in revision). Source table:
-  [`demo/data/Athaliana_GAQET_benchmark.tsv`](demo/data/Athaliana_GAQET_benchmark.tsv).
-- **Eleven other plant species: synthetic data.** The values are generated
-  reproducibly (`random.seed(42)`) to show how the portal compares many genomes.
-  The species names are real; the numbers are not results.
+| Species | Assemblies | Annotations |
+|---|---|---|
+| *Arabidopsis thaliana* | TAIR10, TAIR12 (T2T) | 16 |
+| *Oryza sativa* | Osativa_204 (MSU r7) | 12 |
+| *Cucumis sativus* | ChineseLong v3 (CuGenDB), 9930 v3 (RefSeq) | 13 |
 
-A banner on every page and the assembly *Source* field state which records
-are real and which are synthetic.
+The annotations are the public references (Araport11, TAIR10, TAIR12, MSU r7,
+CuGenDB, three NCBI RefSeq) and 33 annotation-tool runs (ANNEVO, Helixer,
+Tiberius, BRAKER1/2/3, EGAPx, EviAnn, GeMoMa, MAKER, StringTie+TD). Source tables:
+[`demo/data/`](demo/data/), extracted with `scripts/build_demo_data.py`.
+
+What a reviewer can do in two minutes:
+
+- **Species → Assemblies → Annotations.** Each species page has links to NCBI
+  Taxonomy, GoaT and Wikispecies, an assembly table (type, size, sequences,
+  N90/L90, gaps, organelles, BUSCO) and, for each assembly, the annotations
+  side by side, ranked by GAQET's **Global Annotation Score (GAS)**.
+- **Insight tags.** *No UTRs* flags annotations where fewer than 1% of
+  transcripts have a UTR (most ab initio and AI-based tools); *1 isoform/gene*
+  marks tools that predict a single transcript per gene. Click a tag to read
+  why it matters.
+- **Plots.** Per species: the chosen metric per annotation, the same tool on
+  each assembly, and the **GAQET radar** with sliders to change the weight of
+  each analysis in the GAS and watch the ranking move. **Compare species**
+  shows how each tool does across the three genomes.
+- **Get the data.** Public annotations link to their source (Phytozome, NCBI,
+  TAIR, RGAP, CuGenDB); the benchmark runs will link to Zenodo.
 
 **Option 1: in your browser, no installation.** Click
 [**Open in GitHub Codespaces**](https://codespaces.new/aubombarely/phytolaeno?quickstart=1)
@@ -69,13 +85,13 @@ Use `python scripts/demo.py --no_serve` to only build the database
 
 ## Screenshots
 
-All screenshots come from the demo database.
+All screenshots come from the demo database (real data).
 
 | | |
 |---|---|
-| **Home:** archive summary<br><img src="docs/screenshots/01_home.png" width="420"/> | **Species list:** all species in the archive<br><img src="docs/screenshots/02_species_list.png" width="420"/> |
-| **Species:** *A. thaliana*, four assemblies and 17 annotations (real GAQET data)<br><img src="docs/screenshots/03_species_detail.png" width="420"/> | **Assembly:** annotations of one assembly side by side<br><img src="docs/screenshots/04_assembly_detail.png" width="420"/> |
-| **Annotation:** full GAQET QC of one gene-model annotation (ANNEVO v2.2.3; real data, note the missing UTRs)<br><img src="docs/screenshots/05_annotation_detail.png" width="420"/> | **Plots:** BUSCO, gene counts, exon/intron length, PSAURON and repeat content across annotations and tools<br><img src="docs/screenshots/06_plots.png" width="420"/> |
+| **Species:** *A. thaliana* — links, assembly metrics, annotations ranked by GAS with tags<br><img src="docs/screenshots/03_species_detail.png" width="420"/> | **Plots:** rice annotations, per-assembly comparison and the GAQET radar<br><img src="docs/screenshots/06_plots.png" width="420"/> |
+| **Annotation:** full GAQET QC of ANNEVO on TAIR10 (note *No UTRs*)<br><img src="docs/screenshots/05_annotation_detail.png" width="420"/> | **Compare species:** each tool across the three genomes<br><img src="docs/screenshots/07_compare.png" width="420"/> |
+| **Assembly:** TAIR10 and its 15 annotations<br><img src="docs/screenshots/04_assembly_detail.png" width="420"/> | **Home**<br><img src="docs/screenshots/01_home.png" width="420"/> |
 
 ---
 
@@ -431,8 +447,9 @@ phytolaeno/
 │   ├── generate_manifest.py          # Part 2 — manifest generation
 │   ├── collect_annotation_stats.py   # Part 3 — stats collection
 │   └── import_excel.py               # Bulk import from Excel benchmark table
-├── scripts/demo.py                   # one-command demo (SQLite)
-├── demo/data/                        # real A. thaliana GAQET table used by the demo
+├── scripts/demo.py                   # one-command demo (SQLite, real data)
+├── scripts/build_demo_data.py        # extracts demo/data/ from the benchmark spreadsheet
+├── demo/data/                        # real 3-species demo tables
 ├── docs/screenshots/                 # README screenshots (from the demo)
 ├── .devcontainer/                    # GitHub Codespaces demo configuration
 ├── tests/                            # pytest suite (SQLite, no PostgreSQL needed)

@@ -4,7 +4,7 @@ Plant genome annotation management system: directory scaffolding, manifest
 generation, stats collection, and a FastAPI + PostgreSQL web portal for
 browsing and comparing assemblies and annotations.
 
-**Current version:** v0.2.0 (2026-11-06)
+**Current version:** v0.3.0 (2026-11-06)
 
 This project follows the shared coding blueprint at `../CLAUDE.md` where
 applicable. Note that the web application (`app/`) follows FastAPI conventions
@@ -33,9 +33,14 @@ standalone scripts in `scripts/` and note the web-specific deviations below.
 - Dependencies pinned in `requirements.txt`; keep SQLAlchemy on 2.0.x
   (2.1 defaults to psycopg v3) unless the driver is switched.
 - Tests: `python -m pytest -q tests` (SQLite, no PostgreSQL needed).
-- Demo: `python scripts/demo.py` (real A. thaliana GAQET table + 11 synthetic
-  species; banner via PHYTOLAENO_DEMO=1). Codespaces config in `.devcontainer/`.
-  Screenshots in `docs/screenshots/` are taken from the demo with headless Chrome.
+- Demo: `python scripts/demo.py` — real data only (3 species, 5 assemblies, 41
+  annotations) from `demo/data/`, regenerated with `scripts/build_demo_data.py`
+  from the benchmark spreadsheet + collected QUAST metrics. Descriptions/links in
+  `demo/data/descriptions.tsv` (user-reviewed); Zenodo URLs go in
+  `demo/data/downloads.tsv`. GAS/axes in `app/metrics.py` must stay in sync with
+  GAQET2 `gaqet_plot.py` (revision branch). Codespaces config in `.devcontainer/`.
+  Screenshots in `docs/screenshots/` are taken from the demo with headless Chrome
+  (kill Chrome after each file appears; it does not exit by itself).
 
 ## Blueprint compliance status
 

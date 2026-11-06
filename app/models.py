@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, Column, Date, Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -12,6 +12,7 @@ class Species(Base):
     ncbi_taxid     = Column(Integer)
     family         = Column(String)
     lineage        = Column(String)
+    description    = Column(Text)
 
     assemblies = relationship("Assembly", back_populates="species",
                               cascade="all, delete-orphan")
@@ -46,6 +47,18 @@ class Assembly(Base):
     pub_doi              = Column(String)
     prev_version_pub_doi = Column(String)
     prev_version_annot   = Column(String)
+
+    # Assembly metrics (QUAST) and provenance
+    assembly_type        = Column(String)    # T2T gapless / Chromosome-level / ... / Contigs
+    n_sequences          = Column(Integer)
+    n90_bp               = Column(Integer)
+    l90                  = Column(Integer)
+    ns_per_100kbp        = Column(Float)
+    total_length_ge10kb  = Column(Integer)
+    plastid              = Column(String)    # yes / no / not identified
+    mitochondrion        = Column(String)    # yes / no / not identified
+    description          = Column(Text)
+    source_url           = Column(String)
 
     species        = relationship("Species", back_populates="assemblies")
     re_annotations = relationship("RepeatAnnotation", back_populates="assembly",
@@ -161,6 +174,16 @@ class GeneModelAnnotation(Base):
     f1_score_locus = Column(Float)
     missed_loci    = Column(Float)
     new_loci       = Column(Float)
+
+    # Presentation, provenance and derived scores
+    display_name   = Column(String)
+    tool_name      = Column(String)
+    is_reference   = Column(Boolean, default=False, nullable=True)
+    description    = Column(Text)
+    source_url     = Column(String)
+    zenodo_url     = Column(String)
+    micro_exon_pct = Column(Float)     # % transcripts with micro-exons (filled later)
+    gas_score      = Column(Float)     # Global Annotation Score (GAQET), default weights
 
     assembly = relationship("Assembly", back_populates="gm_annotations")
     protocol = relationship("AnnotationProtocol", back_populates="gm_annotations")

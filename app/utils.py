@@ -3,22 +3,20 @@ import re
 
 
 def parse_busco(raw: str) -> dict:
-    """Parse 'C:98.1%[S:76.0%,D:22.1%],F:1.2%,M:0.7%' into numeric fields."""
+    """Parse 'C:98.1%[S:76.0%,D:22.1%],F:1.2%,M:0.7%' into numeric fields.
+
+    Each component is read on its own (as GAQET does), so a truncated string
+    such as '...M:2.4' still yields every value present.
+    """
     if not raw or str(raw).strip() in ("", "nan"):
         return {}
-    m = re.search(
-        r"C:([\d.]+)%\[S:([\d.]+)%,D:([\d.]+)%\],F:([\d.]+)%,M:([\d.]+)%",
-        str(raw),
-    )
-    if not m:
-        return {}
-    return {
-        "complete":    float(m.group(1)),
-        "single":      float(m.group(2)),
-        "duplicated":  float(m.group(3)),
-        "fragmented":  float(m.group(4)),
-        "missing":     float(m.group(5)),
-    }
+    out = {}
+    for key, code in (("complete", "C"), ("single", "S"), ("duplicated", "D"),
+                      ("fragmented", "F"), ("missing", "M")):
+        m = re.search(rf"\b{code}:([\d.]+)", str(raw))
+        if m:
+            out[key] = float(m.group(1))
+    return out if "complete" in out else {}
 
 
 def parse_earlgrey(raw: str) -> dict:

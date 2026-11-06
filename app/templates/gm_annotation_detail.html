@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{{ ann.version_label or "GM Annotation" }} — Phytolaeno{% endblock %}
+{% from "_tags.html" import tag_badges %}
+{% block title %}{{ ann.display_name or ann.version_label or "GM Annotation" }} — Phytolaeno{% endblock %}
 {% block content %}
 {% set sp = ann.assembly.species %}
 <nav aria-label="breadcrumb" class="mb-3">
@@ -7,7 +8,7 @@
     <li class="breadcrumb-item"><a href="/species">Species</a></li>
     <li class="breadcrumb-item"><a href="/species/{{ sp.id }}"><em>{{ sp.name | replace("_", " ") }}</em></a></li>
     <li class="breadcrumb-item"><a href="/assemblies/{{ ann.assembly.id }}">{{ ann.assembly.version }}</a></li>
-    <li class="breadcrumb-item active">{{ ann.version_label or "GM Annotation" }}</li>
+    <li class="breadcrumb-item active">{{ ann.display_name or ann.version_label or "GM Annotation" }}</li>
   </ol>
 </nav>
 
@@ -16,8 +17,17 @@
 {% endmacro %}
 
 <div class="card shadow-sm mb-4">
-  <div class="card-header card-header-ph"><i class="bi bi-gene me-1"></i>{{ ann.version_label or "Gene Model Annotation" }}</div>
+  <div class="card-header card-header-ph d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><i class="bi bi-gene me-1"></i>{{ ann.display_name or ann.version_label or "Gene Model Annotation" }}
+      {% if ann.is_reference %}<span class="badge ph-tag-ref ms-1">Reference</span>{% endif %}</span>
+    {% if ann.gas_score %}<span class="badge bg-light text-dark fs-6" title="Global Annotation Score (GAQET), equal weights">GAS {{ "%.1f"|format(ann.gas_score) }}</span>{% endif %}
+  </div>
   <div class="card-body">
+    {% if ann.description %}<p class="mb-2">{{ ann.description }}</p>{% endif %}
+    <div class="mb-2">{{ tag_badges(ann) }}
+      {% if ann.zenodo_url %}<a class="btn btn-sm btn-ph ms-2" href="{{ ann.zenodo_url }}" target="_blank" rel="noopener"><i class="bi bi-download"></i> Download (Zenodo)</a>
+      {% elif ann.source_url %}<a class="btn btn-sm btn-outline-secondary ms-2" href="{{ ann.source_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Source</a>{% endif %}
+    </div>
     <div class="row">
       <div class="col-md-6">
         <table class="table table-sm table-borderless mb-0">

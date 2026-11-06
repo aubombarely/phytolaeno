@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.database import get_db
 from app import models
+from app.plot_data import build_figures, parse_plot_params, selector_options
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -65,11 +66,19 @@ def species_list(
 
 
 @router.get("/species/{species_id}", name="species_detail")
-def species_detail(species_id: int, request: Request, db: Session = Depends(get_db)):
+def species_detail(species_id: int, request: Request, assembly_id: str | None = None,
+                   annotation_ids: str | None = None, metric: str | None = None,
+                   weights: str | None = None, db: Session = Depends(get_db)):
     sp = db.query(models.Species).filter(models.Species.id == species_id).first()
     if sp is None:
         raise HTTPException(status_code=404, detail="Species not found")
+    params = parse_plot_params(str(species_id), assembly_id, annotation_ids, metric, weights)
+    figures = build_figures(db, params) if sp.assemblies else None
     return templates.TemplateResponse("species_detail.html", {
         "request": request,
         "species": sp,
+        "figures": figures,
+        "params": params,
+        "options": selector_options(db, params),
+        "form_action": f"/species/{species_id}",
     })

@@ -1,0 +1,12 @@
+{# Tag badges; click a badge to read why it matters. #}
+{% macro tag_badges(ann) %}
+  {% for t in annotation_tags(ann) %}
+  <details class="d-inline-block me-1 ph-tag">
+    <summary class="badge rounded-pill {{ 'ph-tag-warn' if t.kind == 'warning' else 'ph-tag-info' }}"
+             title="Click for an explanation">{{ t.label }}</summary>
+    {% if tag_explanations.get(t.explanation_key) %}
+    <div class="ph-tag-text small">{{ tag_explanations[t.explanation_key] }}</div>
+    {% endif %}
+  </details>
+  {% endfor %}
+{% endmacro %}

@@ -1,3 +1,4 @@
+import csv
 import os
 
 from fastapi import FastAPI
@@ -6,10 +7,14 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
 from app.database import engine
+from app.schema_upgrade import ensure_columns
 from app import models
 from app.routers import species, assemblies, annotations, upload, plots
+from app.links import species_links
+from app.metrics import annotation_tags, ranked_annotations
 
 models.Base.metadata.create_all(bind=engine)
+ensure_columns(engine)   # add columns introduced after the DB was created
 
 app = FastAPI(title="Phytolaeno", description="Plant Genome Annotation Archive")
 
@@ -22,7 +27,23 @@ app.include_router(annotations.router)
 app.include_router(upload.router)
 app.include_router(plots.router)
 
-# Demo mode (scripts/demo.py): show a "synthetic data" banner on every page.
+# Demo mode (scripts/demo.py): show the demo banner on every page.
 DEMO_MODE = os.getenv("PHYTOLAENO_DEMO") == "1"
+
+
+def _load_tag_explanations() -> dict[str, str]:
+    """Tag explanations from demo/data/descriptions.tsv (level == "tag"), if present."""
+    path = BASE_DIR.parent / "demo" / "data" / "descriptions.tsv"
+    if not path.exists():
+        return {}
+    with open(path, newline="") as fh:
+        return {r["key"]: r["description"] for r in csv.DictReader(fh, delimiter="\t")
+                if r.get("level") == "tag"}
+
+
+_TAG_EXPLANATIONS = _load_tag_explanations()
 for _router_module in (species, assemblies, annotations, upload, plots):
-    _router_module.templates.env.globals["DEMO_MODE"] = DEMO_MODE
+    _env = _router_module.templates.env
+    _env.globals.update(DEMO_MODE=DEMO_MODE, annotation_tags=annotation_tags,
+                        species_links=species_links, tag_explanations=_TAG_EXPLANATIONS,
+                        ranked_annotations=ranked_annotations)

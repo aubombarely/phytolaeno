@@ -1,5 +1,6 @@
-"""The demo builder runs end to end and its database renders in the portal."""
+"""The demo builder loads the real 3-species benchmark and the portal renders it."""
 import os
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -14,13 +15,16 @@ def test_demo_builds_database(tmp_path):
                        capture_output=True, text=True, cwd=REPO,
                        env={**os.environ, "PYTHONPATH": str(REPO)})
     assert r.returncode == 0, r.stderr[-2000:]
-    assert db.exists() and db.stat().st_size > 0
-    assert "Real (GAQET benchmark): Arabidopsis thaliana" in r.stderr
-    assert "17 gene-model annotations" in r.stderr
-    assert "Synthetic: 11 species" in r.stderr
+    assert "3 species, 5 assemblies, 41 gene-model annotations" in r.stderr
 
-    # Render the demo database in a separate interpreter (the test session's
-    # app is bound to its own SQLite file).
+    con = sqlite3.connect(db)
+    n_gm, n_gas = con.execute(
+        "SELECT COUNT(*), COUNT(gas_score) FROM gm_annotations").fetchone()
+    n_ref = con.execute(
+        "SELECT COUNT(*) FROM gm_annotations WHERE is_reference = 1").fetchone()[0]
+    con.close()
+    assert (n_gm, n_gas, n_ref) == (41, 41, 8)
+
     check = (
         "from fastapi.testclient import TestClient\n"
         "from app.main import app\n"
@@ -28,9 +32,12 @@ def test_demo_builds_database(tmp_path):
         "for p in ['/', '/species', '/plots', '/species/1', '/assemblies/1',\n"
         "          '/annotations/gm/1', '/annotations/re/1']:\n"
         "    r = c.get(p); assert r.status_code == 200, p\n"
-        "assert 'synthetic' in c.get('/').text\n"
-        "assert 'Arabidopsis thaliana' in c.get('/species').text\n"
-        "assert 'real' in c.get('/').text and 'synthetic' in c.get('/').text\n"
+        "home = c.get('/').text\n"
+        "assert 'synthetic' not in home.lower()\n"
+        "assert 'real data' in home\n"
+        "sp = c.get('/species').text\n"
+        "for name in ('Arabidopsis thaliana', 'Oryza sativa', 'Cucumis sativus'):\n"
+        "    assert name in sp, name\n"
     )
     r2 = subprocess.run([sys.executable, "-c", check], capture_output=True, text=True,
                         cwd=REPO, env={**os.environ, "PYTHONPATH": str(REPO),
