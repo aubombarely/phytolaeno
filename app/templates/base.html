@@ -30,6 +30,14 @@
     a { color: var(--ph-green); }
     a:hover { color: var(--ph-mid); }
     footer { background: var(--ph-dark); color: #a5d6a7; font-size: .85em; }
+    .ph-tag summary { list-style: none; cursor: pointer; }
+    .ph-tag summary::-webkit-details-marker { display: none; }
+    .ph-tag-warn { background: #F5A623; color: #222; }
+    .ph-tag-info { background: #888888; color: #fff; }
+    .ph-tag-ref  { background: #888888; color: #fff; }
+    .ph-tag[open] .ph-tag-text { display: block; max-width: 28rem; white-space: normal;
+      background: #fff8e6; border: 1px solid #F5A623; border-radius: .4rem; padding: .4rem .6rem; margin-top: .25rem; }
+    tr.ph-ref-row td { background: #f3f4f3; }
   </style>
   {% block head %}{% endblock %}
 </head>

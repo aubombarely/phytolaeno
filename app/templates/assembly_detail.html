@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_annotation_table.html" import annotation_table %}
 {% block title %}{{ assembly.version }} — Phytolaeno{% endblock %}
 {% block content %}
 <nav aria-label="breadcrumb" class="mb-3">
@@ -9,60 +10,32 @@
   </ol>
 </nav>
 
-<div class="card shadow-sm mb-4">
-  <div class="card-header card-header-ph"><i class="bi bi-layers me-1"></i>{{ assembly.version }}</div>
-  <div class="card-body">
-    <div class="row mb-2">
-      <div class="col-md-3"><strong>Source:</strong> {{ assembly.source or "—" }}</div>
-      <div class="col-md-3"><strong>Size:</strong> {{ "%.2f Gb"|format(assembly.size_gb) if assembly.size_gb else "—" }}</div>
-      <div class="col-md-3"><strong>Status:</strong> {{ assembly.status or "—" }}</div>
-    </div>
-    <div class="row mb-2">
-      <div class="col-12"><strong>Assembly BUSCO (viridiplantae):</strong> {{ assembly.busco_viridi_raw or "—" }}</div>
-      <div class="col-12"><strong>Assembly BUSCO (embryophyta):</strong> {{ assembly.busco_embryo_raw or "—" }}</div>
-    </div>
-    {% if assembly.pub_doi %}
-    <div><strong>Publication:</strong> <a href="{{ assembly.pub_doi }}" target="_blank">{{ assembly.pub_doi }}</a></div>
-    {% endif %}
-  </div>
+<h4 class="mb-2"><i class="bi bi-layers me-1"></i>Assembly</h4>
+{% set asms = [assembly] %}
+{% include "_assembly_table.html" %}
+<div class="small mb-4">
+  {% if assembly.busco_viridi_raw %}<div><strong>Assembly BUSCO (viridiplantae):</strong> {{ assembly.busco_viridi_raw }}</div>{% endif %}
+  {% if assembly.busco_embryo_raw %}<div><strong>Assembly BUSCO (embryophyta):</strong> {{ assembly.busco_embryo_raw }}</div>{% endif %}
+  {% if assembly.pub_doi %}<div><strong>Publication:</strong> <a href="{{ assembly.pub_doi }}" target="_blank" rel="noopener">{{ assembly.pub_doi }}</a></div>{% endif %}
 </div>
 
-<h4 class="mb-3"><i class="bi bi-gene me-1"></i>Gene Model Annotations <span class="badge bg-secondary">{{ assembly.gm_annotations | length }}</span></h4>
-<div class="table-responsive mb-4">
-  <table class="table table-hover table-sm">
-    <thead><tr>
-      <th>Rank</th><th>Version</th><th>Tool</th><th>Gene Models</th>
-      <th>BUSCO Viridi C%</th><th>BUSCO Embryo C%</th><th>PSAURON</th><th></th>
-    </tr></thead>
-    <tbody>
-      {% for gm in assembly.gm_annotations | sort(attribute="rank") %}
-      <tr>
-        <td>{{ gm.rank or "—" }}</td>
-        <td>{{ gm.version_label or "—" }}</td>
-        <td>{{ gm.protocol.tool if gm.protocol else "—" }}</td>
-        <td>{{ "{:,}".format(gm.gene_models_n) if gm.gene_models_n else "—" }}</td>
-        <td>{{ "%.1f"|format(gm.busco_viridi_complete) if gm.busco_viridi_complete else "—" }}</td>
-        <td>{{ "%.1f"|format(gm.busco_embryo_complete) if gm.busco_embryo_complete else "—" }}</td>
-        <td>{{ "%.1f"|format(gm.psauron_score) if gm.psauron_score else "—" }}</td>
-        <td><a href="/annotations/gm/{{ gm.id }}" class="btn btn-ph btn-sm">Detail</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+<h4 class="mb-2"><i class="bi bi-diagram-3 me-1"></i>Gene model annotations <span class="badge bg-secondary">{{ assembly.gm_annotations | length }}</span></h4>
+{% if assembly.gm_annotations %}{{ annotation_table(assembly) }}{% else %}<p class="text-muted">No gene-model annotations.</p>{% endif %}
 
-<h4 class="mb-3"><i class="bi bi-repeat me-1"></i>Repeat Annotations <span class="badge bg-secondary">{{ assembly.re_annotations | length }}</span></h4>
+<h4 class="mt-4 mb-2"><i class="bi bi-repeat me-1"></i>Repeat and ncRNA annotations <span class="badge bg-secondary">{{ assembly.re_annotations | length }}</span></h4>
 <div class="table-responsive">
   <table class="table table-hover table-sm">
-    <thead><tr><th>Tool</th><th>Total Repeats %</th><th>Version</th><th></th></tr></thead>
+    <thead><tr><th>Tool</th><th>Total repeats %</th><th>Summary</th><th></th></tr></thead>
     <tbody>
       {% for re in assembly.re_annotations %}
       <tr>
         <td>{{ re.protocol.tool if re.protocol else "—" }}</td>
         <td>{{ "%.2f"|format(re.total_pct) if re.total_pct else "—" }}</td>
-        <td>{{ re.version_label or "—" }}</td>
+        <td class="small text-muted">{{ (re.raw_output or "")[:90] }}</td>
         <td><a href="/annotations/re/{{ re.id }}" class="btn btn-ph btn-sm">Detail</a></td>
       </tr>
+      {% else %}
+      <tr><td colspan="4" class="text-muted">No repeat or ncRNA annotations.</td></tr>
       {% endfor %}
     </tbody>
   </table>

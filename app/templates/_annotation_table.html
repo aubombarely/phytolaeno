@@ -1,0 +1,38 @@
+{% from "_tags.html" import tag_badges %}
+{# Side-by-side comparison of the gene-model annotations of one assembly, best GAS first. #}
+{% macro annotation_table(asm) %}
+{% set anns = asm.gm_annotations | sort(attribute="gas_score", reverse=True) | list %}
+{% set scored = anns | selectattr("gas_score") | list %}
+{% set unscored = anns | rejectattr("gas_score") | list %}
+<div class="table-responsive">
+<table class="table table-hover table-sm align-middle" data-assembly="{{ asm.version }}">
+  <thead><tr>
+    <th>Annotation</th><th>Tool</th><th class="text-end">Genes</th><th class="text-end">Transcripts</th>
+    <th class="text-end">BUSCO C%</th><th class="text-end">PSAURON</th>
+    <th class="text-end" title="Global Annotation Score (GAQET), equal weights">GAS</th>
+    <th>Tags</th><th>Get it</th>
+  </tr></thead>
+  <tbody>
+  {% for gm in scored + unscored %}
+  <tr data-annotation="{{ gm.display_name or gm.version_label }}"{% if gm.gas_score %} data-gas="{{ '%.2f'|format(gm.gas_score) }}"{% endif %}
+      class="{{ 'ph-ref-row' if gm.is_reference else '' }}">
+    <td><a href="/annotations/gm/{{ gm.id }}">{{ gm.display_name or gm.version_label or "Annotation" }}</a>
+      {% if gm.is_reference %}<span class="badge ph-tag-ref ms-1">Reference</span>{% endif %}</td>
+    <td>{{ gm.tool_name or (gm.protocol.tool if gm.protocol else "—") }}</td>
+    <td class="text-end">{{ "{:,}".format(gm.gene_models_n) if gm.gene_models_n else "—" }}</td>
+    <td class="text-end">{{ "{:,}".format(gm.transcript_models_n) if gm.transcript_models_n else "—" }}</td>
+    <td class="text-end">{{ "%.1f"|format(gm.busco_viridi_complete) if gm.busco_viridi_complete is not none else "—" }}</td>
+    <td class="text-end">{{ "%.1f"|format(gm.psauron_score) if gm.psauron_score is not none else "—" }}</td>
+    <td class="text-end fw-bold">{{ "%.1f"|format(gm.gas_score) if gm.gas_score else "—" }}</td>
+    <td>{{ tag_badges(gm) }}</td>
+    <td class="small">
+      {% if gm.zenodo_url %}<a href="{{ gm.zenodo_url }}" target="_blank" rel="noopener"><i class="bi bi-download"></i> Zenodo</a>
+      {% elif gm.source_url %}<a href="{{ gm.source_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Source</a>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endmacro %}

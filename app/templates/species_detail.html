@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_annotation_table.html" import annotation_table %}
 {% block title %}{{ species.name | replace("_", " ") }} — Phytolaeno{% endblock %}
 {% block content %}
 <nav aria-label="breadcrumb" class="mb-3">
@@ -9,64 +10,42 @@
 </nav>
 
 <div class="card shadow-sm mb-4">
-  <div class="card-header card-header-ph">
-    <i class="bi bi-flower1 me-1"></i><em>{{ species.name | replace("_", " ") }}</em>
+  <div class="card-header card-header-ph d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span class="fs-5"><i class="bi bi-flower1 me-1"></i><em>{{ species.name | replace("_", " ") }}</em></span>
+    <span>
+      {% for label, url in species_links(species.name, species.ncbi_taxid) %}
+      <a class="btn btn-sm btn-light me-1" href="{{ url }}" target="_blank" rel="noopener">{{ label }} <i class="bi bi-box-arrow-up-right"></i></a>
+      {% endfor %}
+    </span>
   </div>
   <div class="card-body">
-    <div class="row">
-      <div class="col-md-4"><strong>Family:</strong> {{ species.family or "—" }}</div>
-      <div class="col-md-4"><strong>Lineage:</strong> {{ species.lineage or "—" }}</div>
-      <div class="col-md-4"><strong>NCBI TaxID:</strong> {{ species.ncbi_taxid or "—" }}</div>
+    {% if species.description %}<p class="mb-2">{{ species.description }}</p>{% endif %}
+    <div class="row small text-muted">
+      {% if species.family %}<div class="col-md-4"><strong>Family:</strong> {{ species.family }}</div>{% endif %}
+      {% if species.lineage %}<div class="col-md-5"><strong>Lineage:</strong> {{ species.lineage }}</div>{% endif %}
+      {% if species.ncbi_taxid %}<div class="col-md-3"><strong>NCBI TaxID:</strong> {{ species.ncbi_taxid }}</div>{% endif %}
     </div>
   </div>
 </div>
 
-<h4 class="mb-3"><i class="bi bi-layers me-1"></i>Assemblies <span class="badge bg-secondary">{{ species.assemblies | length }}</span></h4>
+{% set asms = species.assemblies | sort(attribute="version") | list %}
+<h4 class="mb-2"><i class="bi bi-layers me-1"></i>1 · Assemblies <span class="badge bg-secondary">{{ asms | length }}</span></h4>
+{% include "_assembly_table.html" %}
 
-{% for asm in species.assemblies %}
+<h4 class="mt-4 mb-2"><i class="bi bi-diagram-3 me-1"></i>2 · Annotations, compared per assembly</h4>
+<p class="small text-muted mb-3">Ranked by the Global Annotation Score (GAS) of GAQET: the share-weighted mean of BUSCO,
+OMArk, homology, DeTEnGA, PSAURON and start/stop-codon completeness (equal weights). Click a tag to see why it matters.</p>
+{% for asm in asms %}
 <div class="card shadow-sm mb-3">
   <div class="card-header card-header-ph d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-cpu me-1"></i><a href="/assemblies/{{ asm.id }}" class="text-white text-decoration-none fw-bold">{{ asm.version }}</a></span>
-    <span class="badge bg-light text-dark">{{ asm.status or "" }}</span>
+    <span><i class="bi bi-cpu me-1"></i><a href="/assemblies/{{ asm.id }}" class="text-white fw-bold">{{ asm.version }}</a></span>
+    <span class="badge bg-light text-dark">{{ asm.gm_annotations | length }} annotations</span>
   </div>
-  <div class="card-body">
-    <div class="row mb-2">
-      <div class="col-md-3"><strong>Source:</strong> {{ asm.source or "—" }}</div>
-      <div class="col-md-3"><strong>Size:</strong> {{ "%.2f Gb"|format(asm.size_gb) if asm.size_gb else "—" }}</div>
-      <div class="col-md-6"><strong>DOI:</strong>
-        {% if asm.pub_doi %}<a href="{{ asm.pub_doi }}" target="_blank">{{ asm.pub_doi }}</a>{% else %}—{% endif %}
-      </div>
-    </div>
-    <div class="row mb-2">
-      <div class="col-md-6"><strong>Assembly BUSCO (viridiplantae):</strong> {{ asm.busco_viridi_raw or "—" }}</div>
-      <div class="col-md-6"><strong>Assembly BUSCO (embryophyta):</strong> {{ asm.busco_embryo_raw or "—" }}</div>
-    </div>
-
-    <div class="row">
-      <div class="col-md-6">
-        <strong>Gene Model Annotations:</strong>
-        <ul class="mb-0 mt-1">
-          {% for gm in asm.gm_annotations %}
-          <li><a href="/annotations/gm/{{ gm.id }}">Rank {{ gm.rank }}: {{ gm.version_label or "—" }}</a>
-            <span class="text-muted small">({{ gm.protocol.tool if gm.protocol else "?" }})</span>
-          </li>
-          {% else %}<li class="text-muted">None</li>
-          {% endfor %}
-        </ul>
-      </div>
-      <div class="col-md-6">
-        <strong>Repeat Annotations:</strong>
-        <ul class="mb-0 mt-1">
-          {% for re in asm.re_annotations %}
-          <li><a href="/annotations/re/{{ re.id }}">{{ re.protocol.tool if re.protocol else "?" }}</a>
-            {% if re.total_pct %}<span class="text-muted small">({{ "%.1f"|format(re.total_pct) }}%)</span>{% endif %}
-          </li>
-          {% else %}<li class="text-muted">None</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
+  <div class="card-body p-2">
+    {% if asm.gm_annotations %}{{ annotation_table(asm) }}{% else %}<p class="text-muted mb-0 p-2">No gene-model annotations.</p>{% endif %}
   </div>
 </div>
 {% endfor %}
+
+{% block species_plots %}{% endblock %}
 {% endblock %}
